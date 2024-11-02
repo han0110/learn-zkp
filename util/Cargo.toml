@@ -1,0 +1,25 @@
+[package]
+name = "util"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+itertools = { workspace = true }
+p3-baby-bear = { workspace = true }
+p3-challenger = { workspace = true }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-mersenne-31 = { workspace = true }
+p3-symmetric = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+
+[features]
+default = []
+
+[lints.rust]
+missing_debug_implementations = "forbid"
+
+[lints.rustdoc]
+broken_intra_doc_links = "forbid"

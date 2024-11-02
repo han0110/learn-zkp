@@ -1,0 +1,19 @@
+[workspace]
+members = ["poly-commit", "sumcheck", "util"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+
+[workspace.dependencies]
+auto_impl = "1.2.0"
+itertools = "0.13.0"
+p3-baby-bear = { git = "https://github.com/plonky3/plonky3" }
+p3-challenger = { git = "https://github.com/plonky3/plonky3" }
+p3-field = { git = "https://github.com/plonky3/plonky3" }
+p3-goldilocks = { git = "https://github.com/plonky3/plonky3" }
+p3-keccak = { git = "https://github.com/plonky3/plonky3" }
+p3-mersenne-31 = { git = "https://github.com/plonky3/plonky3" }
+p3-symmetric = { git = "https://github.com/plonky3/plonky3" }
+rand = "0.8.5"

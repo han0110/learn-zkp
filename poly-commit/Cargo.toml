@@ -1,0 +1,17 @@
+[package]
+name = "poly-commit"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+
+[features]
+default = []
+
+[lints.rust]
+missing_debug_implementations = "forbid"
+
+[lints.rustdoc]
+broken_intra_doc_links = "forbid"
