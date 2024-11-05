@@ -1,11 +1,12 @@
-use crate::field::FieldExt;
-use core::{fmt::Debug,marker::PhantomData};
+use crate::field::FromUniformBytes;
+use core::{fmt::Debug, marker::PhantomData};
 use p3_challenger::{CanObserve, CanSample, CanSampleBits, FieldChallenger, HashChallenger};
-use p3_field::ExtensionField;
+use p3_field::{ExtensionField, Field};
+use p3_keccak::Keccak256Hash;
 use p3_symmetric::CryptographicHasher;
 
 #[derive(Debug)]
-pub struct FieldExtChallenger<F, H>
+pub struct GenericChallenger<F, H>
 where
     H: CryptographicHasher<u8, [u8; 32]>,
 {
@@ -13,53 +14,53 @@ where
     _marker: PhantomData<F>,
 }
 
-impl<F, H> FieldExtChallenger<F, H>
+impl<F, H> GenericChallenger<F, H>
 where
     H: CryptographicHasher<u8, [u8; 32]>,
 {
-    pub fn new(inner: HashChallenger<u8, H, 32>) -> Self {
+    pub fn new(initial_state: Vec<u8>, hasher: H) -> Self {
         Self {
-            inner,
+            inner: HashChallenger::new(initial_state, hasher),
             _marker: PhantomData,
         }
     }
 }
 
-impl<F, E, H> CanObserve<E> for FieldExtChallenger<F, H>
+impl<F> GenericChallenger<F, Keccak256Hash> {
+    pub fn keccak256() -> Self {
+        Self::new(Vec::new(), Keccak256Hash)
+    }
+}
+
+impl<F, E, H> CanObserve<E> for GenericChallenger<F, H>
 where
-    F: FieldExt,
+    F: Field + FromUniformBytes,
     E: ExtensionField<F>,
     H: CryptographicHasher<u8, [u8; 32]>,
 {
     fn observe(&mut self, value: E) {
         value.as_base_slice().iter().for_each(|base| {
-            self.inner.observe_slice(base.to_repr().as_ref());
+            self.inner
+                .observe_slice(&bincode::serialize(&base).unwrap());
         });
     }
 }
 
-impl<F, E, H> CanSample<E> for FieldExtChallenger<F, H>
+impl<F, E, H> CanSample<E> for GenericChallenger<F, H>
 where
-    F: FieldExt,
+    F: Field + FromUniformBytes,
     E: ExtensionField<F>,
     H: CryptographicHasher<u8, [u8; 32]>,
 {
     fn sample(&mut self) -> E {
         let sample_base = |inner: &mut HashChallenger<u8, H, 32>| {
-            let mut repr = F::Repr::default();
-            let len = repr.as_ref().len();
-            loop {
-                repr.as_mut().copy_from_slice(&inner.sample_vec(len));
-                if let Some(value) = F::try_from_repr(repr) {
-                    return value;
-                }
-            }
+            F::from_uniform_bytes(|bytes| bytes.fill_with(|| inner.sample()))
         };
         E::from_base_fn(|_| sample_base(&mut self.inner))
     }
 }
 
-impl<F, H> CanSampleBits<usize> for FieldExtChallenger<F, H>
+impl<F, H> CanSampleBits<usize> for GenericChallenger<F, H>
 where
     H: CryptographicHasher<u8, [u8; 32]>,
 {
@@ -68,9 +69,9 @@ where
     }
 }
 
-impl<F, E, H> FieldChallenger<E> for FieldExtChallenger<F, H>
+impl<F, E, H> FieldChallenger<E> for GenericChallenger<F, H>
 where
-    F: Sync + FieldExt,
+    F: Sync + Field + FromUniformBytes,
     E: Sync + ExtensionField<F>,
     H: Sync + CryptographicHasher<u8, [u8; 32]>,
 {

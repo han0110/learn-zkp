@@ -1,10 +1,10 @@
-use crate::{
-    poly::{op_poly, op_polys, Poly},
-    SumcheckFunction, SumcheckFunctionProver,
-};
+use crate::{SumcheckFunction, SumcheckFunctionProver};
 use core::{marker::PhantomData, ops::Deref};
 use p3_field::{ExtensionField, Field};
-use util::{collection::FieldArray, izip_eq};
+use util::{
+    collection::FieldArray, field::ExtPackedValue, izip, op_multi_polys,
+    poly::multilinear::MultiPoly,
+};
 
 #[derive(Clone, Debug)]
 pub struct Quadratic<F, E> {
@@ -27,11 +27,11 @@ impl<F, E> Quadratic<F, E> {
 #[derive(Clone, Debug)]
 pub struct QuadraticProver<'a, F: Field, E: ExtensionField<F>> {
     f: Quadratic<F, E>,
-    polys: Vec<Poly<'a, F, E>>,
+    polys: Vec<MultiPoly<'a, F, E>>,
 }
 
 impl<'a, F: Field, E: ExtensionField<F>> QuadraticProver<'a, F, E> {
-    pub fn new(f: Quadratic<F, E>, polys: Vec<Poly<'a, F, E>>) -> Self {
+    pub fn new(f: Quadratic<F, E>, polys: Vec<MultiPoly<'a, F, E>>) -> Self {
         Self { f, polys }
     }
 }
@@ -97,7 +97,11 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
             .iter()
             .map(|(scalar, f, g)| {
                 let (f, g) = (&self.polys[*f], &self.polys[*g]);
-                let sum = op_polys!(|f, g| izip_eq!(f, g).map(|(f, g)| *f * *g).sum(), E::from);
+                let sum = op_multi_polys!(
+                    |f, g| izip!(f, g).map(|(f, g)| *f * *g).sum(),
+                    |sum| E::from(sum),
+                    |sum: E::ExtensionPacking| sum.ext_sum(),
+                );
                 sum * *scalar
             })
             .sum()
@@ -109,16 +113,16 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
             .iter()
             .map(|(scalar, f, g)| {
                 let (f, g) = (&self.polys[*f], &self.polys[*g]);
-                let sum = op_polys!(
-                    |f, g| (0..f.len())
-                        .step_by(2)
+                let sum = op_multi_polys!(
+                    |f, g| (0..f.len() / 2)
                         .map(|b| {
                             let coeff_0 = f[b] * g[b];
-                            let coeff_2 = (f[b + 1] - f[b]) * (g[b + 1] - g[b]);
+                            let coeff_2 = (f[f.len() / 2 + b] - f[b]) * (g[f.len() / 2 + b] - g[b]);
                             FieldArray([coeff_0, coeff_2])
                         })
                         .sum::<FieldArray<_, 2>>(),
-                    |sum| sum.map(E::from)
+                    |sum| sum.map(E::from),
+                    |sum| sum.map(|packed| packed.ext_sum()),
                 );
                 sum * *scalar
             })
@@ -126,17 +130,15 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
         self.decompress_round_poly(round, claim, &[coeff_0, coeff_2])
     }
 
-    fn fix_var(&mut self, x_i: &E) {
-        self.polys.iter_mut().for_each(|poly| poly.fix_var(x_i));
+    fn fix_last_var(&mut self, x_i: E) {
+        self.polys
+            .iter_mut()
+            .for_each(|poly| poly.fix_last_var(x_i));
     }
 
     fn evaluations(&self) -> Option<Vec<E>> {
-        (self.polys[0].num_vars() == 0).then(|| {
-            self.polys
-                .iter()
-                .map(|poly| op_poly!(|poly| poly[0], E::from))
-                .collect()
-        })
+        (self.polys[0].num_vars() == 0)
+            .then(|| self.polys.iter().map(|poly| poly.to_ext()[0]).collect())
     }
 }
 
@@ -144,40 +146,41 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
 mod test {
     use crate::{
         function::quadratic::{Quadratic, QuadraticProver},
-        poly::Poly,
         test::run_sumcheck,
     };
     use core::iter::repeat_with;
-    use p3_field::extension::BinomialExtensionField;
-    use p3_mersenne_31::Mersenne31;
-    use rand::{distributions::Standard, Rng};
-    use std::borrow::Cow;
-    use util::field::FieldExt;
+    use p3_baby_bear::BabyBear;
+    use p3_field::{extension::BinomialExtensionField, ExtensionField, Field};
+    use rand::Rng;
+    use util::{field::FromUniformBytes, poly::multilinear::MultiPoly};
 
     #[test]
     fn quadratic() {
-        type F = Mersenne31;
-        type E = BinomialExtensionField<Mersenne31, 3>;
-        run_sumcheck(|num_vars, rng| {
-            let num_polys = rng.gen_range(5..10);
-            let num_pairs = rng.gen_range(5..10);
-            let f = Quadratic::new(
-                num_vars,
-                (0..num_pairs)
-                    .map(|_| {
-                        let scalar = rng.sample::<E, _>(Standard);
-                        let f = rng.gen_range(0..num_polys);
-                        let g = rng.gen_range(0..num_polys);
-                        (scalar, f, g)
-                    })
-                    .collect(),
-            );
-            QuadraticProver::new(
-                f,
-                repeat_with(|| Poly::Base(Cow::Owned(F::random_vec(1 << num_vars, &mut *rng))))
-                    .take(num_polys)
-                    .collect(),
-            )
-        });
+        fn run<F: Field + FromUniformBytes, E: ExtensionField<F> + FromUniformBytes>() {
+            run_sumcheck(|num_vars, rng| {
+                let num_polys = rng.gen_range(5..10);
+                let num_pairs = rng.gen_range(5..10);
+                let f = Quadratic::new(
+                    num_vars,
+                    (0..num_pairs)
+                        .map(|_| {
+                            let scalar = E::random(&mut *rng);
+                            let f = rng.gen_range(0..num_polys);
+                            let g = rng.gen_range(0..num_polys);
+                            (scalar, f, g)
+                        })
+                        .collect(),
+                );
+                QuadraticProver::new(
+                    f,
+                    repeat_with(|| MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng)))
+                        .take(num_polys)
+                        .collect(),
+                )
+            });
+        }
+
+        run::<BabyBear, BabyBear>();
+        run::<BabyBear, BinomialExtensionField<BabyBear, 5>>();
     }
 }

@@ -11,12 +11,10 @@ rand = { workspace = true }
 util = { path = "../util" }
 
 [dev-dependencies]
-p3-keccak = { workspace = true }
-p3-mersenne-31 = { workspace = true }
+p3-baby-bear = { workspace = true }
 
 [features]
 default = []
-sanity-check = []
 
 [lints.rust]
 missing_debug_implementations = "forbid"
