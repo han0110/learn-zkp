@@ -1,8 +1,11 @@
 use crate::function::{SumcheckFunction, SumcheckFunctionProver};
 use core::fmt::Debug;
-use p3_challenger::{CanObserve, FieldChallenger};
-use p3_field::{ExtensionField, Field};
-use util::{izip, poly::univariate::horner, Itertools};
+use p3::{
+    challenger::{CanObserve, FieldChallenger},
+    field::{ExtensionField, Field},
+    poly::univariate::horner,
+};
+use util::{izip, Itertools};
 
 pub mod function;
 
@@ -96,9 +99,12 @@ pub fn verify_sumcheck<F: Field, E: ExtensionField<F>>(
 #[cfg(test)]
 pub(crate) mod test {
     use crate::{prove_sumcheck, verify_sumcheck, SumcheckFunctionProver};
-    use p3_field::{ExtensionField, Field};
+    use p3::{
+        challenger::GenericChallenger,
+        field::FromUniformBytes,
+        field::{ExtensionField, Field},
+    };
     use rand::{rngs::StdRng, SeedableRng};
-    use util::{challenger::GenericChallenger, field::FromUniformBytes};
 
     pub(crate) fn run_sumcheck<
         F: Field + FromUniformBytes,

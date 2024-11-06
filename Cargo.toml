@@ -1,5 +1,5 @@
 [workspace]
-members = ["poly-commit", "sumcheck", "util"]
+members = ["p3", "poly-commit", "sumcheck", "util"]
 resolver = "2"
 
 [workspace.package]
@@ -19,7 +19,9 @@ p3-goldilocks = { git = "https://github.com/plonky3/plonky3" }
 p3-keccak = { git = "https://github.com/plonky3/plonky3" }
 p3-matrix = { git = "https://github.com/plonky3/plonky3" }
 p3-maybe-rayon = { git = "https://github.com/plonky3/plonky3" }
+p3-merkle-tree = { git = "https://github.com/plonky3/plonky3" }
 p3-mersenne-31 = { git = "https://github.com/plonky3/plonky3" }
 p3-symmetric = { git = "https://github.com/plonky3/plonky3" }
 rand = "0.8.5"
 rayon = "1"
+serde = "1"

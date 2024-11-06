@@ -1,10 +1,10 @@
-use crate::izip;
 use core::{
     array,
     iter::Sum,
     ops::{Add, AddAssign, Deref, DerefMut, Mul, MulAssign},
 };
 use p3_field::AbstractField;
+use util::izip;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(transparent)]

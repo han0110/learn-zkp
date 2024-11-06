@@ -5,13 +5,11 @@ version.workspace = true
 
 [dependencies]
 auto_impl = { workspace = true }
-p3-challenger = { workspace = true }
-p3-field = { workspace = true }
 rand = { workspace = true }
+p3 = { path = "../p3" }
 util = { path = "../util" }
 
 [dev-dependencies]
-p3-baby-bear = { workspace = true }
 
 [features]
 default = []

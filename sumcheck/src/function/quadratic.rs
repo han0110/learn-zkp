@@ -1,10 +1,11 @@
 use crate::{SumcheckFunction, SumcheckFunctionProver};
 use core::{marker::PhantomData, ops::Deref};
-use p3_field::{ExtensionField, Field};
-use util::{
-    collection::FieldArray, field::ExtPackedValue, izip, op_multi_polys,
+use p3::{
+    field::{ExtPackedValue, ExtensionField, Field, FieldArray},
+    op_multi_polys,
     poly::multilinear::MultiPoly,
 };
+use util::izip;
 
 #[derive(Clone, Debug)]
 pub struct Quadratic<F, E> {
@@ -149,10 +150,13 @@ mod test {
         test::run_sumcheck,
     };
     use core::iter::repeat_with;
-    use p3_baby_bear::BabyBear;
-    use p3_field::{extension::BinomialExtensionField, ExtensionField, Field};
+    use p3::{
+        field::{
+            extension::BinomialExtensionField, BabyBear, ExtensionField, Field, FromUniformBytes,
+        },
+        poly::multilinear::MultiPoly,
+    };
     use rand::Rng;
-    use util::{field::FromUniformBytes, poly::multilinear::MultiPoly};
 
     #[test]
     fn quadratic() {

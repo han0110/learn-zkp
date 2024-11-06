@@ -1,0 +1,32 @@
+[package]
+name = "p3"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+bincode = { workspace = true }
+p3-baby-bear = { workspace = true }
+p3-challenger = { workspace = true }
+p3-commit = { workspace = true }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-keccak = { workspace = true }
+p3-matrix = { workspace = true }
+p3-maybe-rayon = { workspace = true, features = ["parallel"] }
+p3-merkle-tree = { workspace = true }
+p3-mersenne-31 = { workspace = true }
+p3-symmetric = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+util = { path = "../util" }
+
+[dev-dependencies]
+
+[features]
+default = []
+
+[lints.rust]
+missing_debug_implementations = "forbid"
+
+[lints.rustdoc]
+broken_intra_doc_links = "forbid"

@@ -1,5 +1,5 @@
 use core::fmt::Debug;
-use p3_field::{ExtensionField, Field};
+use p3::field::{ExtensionField, Field};
 
 pub mod quadratic;
 

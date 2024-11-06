@@ -1,9 +1,10 @@
 use crate::field::FromUniformBytes;
 use core::{fmt::Debug, marker::PhantomData};
-use p3_challenger::{CanObserve, CanSample, CanSampleBits, FieldChallenger, HashChallenger};
 use p3_field::{ExtensionField, Field};
 use p3_keccak::Keccak256Hash;
 use p3_symmetric::CryptographicHasher;
+
+pub use p3_challenger::*;
 
 #[derive(Debug)]
 pub struct GenericChallenger<F, H>

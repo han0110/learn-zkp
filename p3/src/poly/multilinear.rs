@@ -1,12 +1,9 @@
-use crate::{
-    enumerate,
-    field::{ExtPackedValue, FieldSlice},
-    izip, Itertools,
-};
+use crate::field::{ExtPackedValue, FieldSlice};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use std::borrow::Cow;
+use util::{enumerate, izip, Itertools};
 
 pub fn interpolate<F: Field>(mut evals: RowMajorMatrix<F>) -> RowMajorMatrix<F> {
     debug_assert!(evals.height().is_power_of_two());
@@ -20,7 +17,7 @@ pub fn interpolate<F: Field>(mut evals: RowMajorMatrix<F>) -> RowMajorMatrix<F> 
     evals
 }
 
-pub fn transpose<F: Field>(evals: RowMajorMatrix<F>) -> Vec<Vec<F>> {
+pub fn transpose<F: Field>(evals: &RowMajorMatrix<F>) -> Vec<Vec<F>> {
     (0..evals.width())
         .map(|offset| {
             evals.values[offset..]
@@ -250,8 +247,8 @@ mod test {
     use std::borrow::Cow;
 
     mod definition {
-        use crate::izip;
         use p3_field::{ExtensionField, Field};
+        use util::izip;
 
         pub fn eq_evals<E: Field>(x: &[E], scalar: E) -> Vec<E> {
             (0..1 << x.len())

@@ -1,22 +1,5 @@
-use core::borrow::Borrow;
-use p3_field::Field;
-use poly::univariate::horner;
-
 pub use itertools::{chain, enumerate, Itertools};
-pub use p3_maybe_rayon as rayon;
-
-pub mod challenger;
-pub mod collection;
-pub mod field;
-pub mod poly;
-
-/// Returns `values[0] + alpha * values[1] + alpha^2 * values[2] + ...`
-pub fn random_linear_combine<F: Field>(
-    values: impl IntoIterator<IntoIter: DoubleEndedIterator<Item: Borrow<F>>>,
-    alpha: &F,
-) -> F {
-    horner(values, alpha)
-}
+pub use rayon;
 
 #[macro_export]
 macro_rules! izip {
