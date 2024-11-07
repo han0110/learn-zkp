@@ -7,6 +7,7 @@ use crate::{
         dense::{RowMajorMatrix, RowMajorMatrixCow},
         Matrix,
     },
+    op_multi_poly,
 };
 use std::borrow::Cow;
 use util::{enumerate, izip, rayon::prelude::*, Itertools};
@@ -52,8 +53,8 @@ pub fn transpose<F: Field>(evals: &RowMajorMatrix<F>) -> Vec<Vec<F>> {
 #[derive(Clone, Debug)]
 pub enum MultiPoly<'a, F: Field, E: ExtensionField<F>> {
     Base(Cow<'a, [F]>),
-    Ext(Vec<E>),
-    ExtPacking(Vec<E::ExtensionPacking>),
+    Ext(Cow<'a, [E]>),
+    ExtPacking(Cow<'a, [E::ExtensionPacking]>),
 }
 
 impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
@@ -61,6 +62,14 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
 
     pub fn base(evals: impl Into<Cow<'a, [F]>>) -> Self {
         Self::Base(evals.into())
+    }
+
+    pub fn ext(evals: impl Into<Cow<'a, [E]>>) -> Self {
+        Self::Ext(evals.into())
+    }
+
+    pub fn ext_packing(evals: impl Into<Cow<'a, [E::ExtensionPacking]>>) -> Self {
+        Self::ExtPacking(evals.into())
     }
 
     pub fn eq<'t>(
@@ -73,7 +82,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
             let mut evals = E::zero_vec(1 << num_vars);
             evals[0] = scalar;
             enumerate(x).for_each(|(i, x_i)| eq_expand(&mut evals, *x_i, i));
-            return Self::Ext(evals);
+            return Self::ext(evals);
         }
 
         let mut lo = E::zero_vec(F::Packing::WIDTH);
@@ -85,7 +94,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
         evals[0] = E::ExtensionPacking::ext_pack(&lo);
         let x_hi = x.copied().map(E::ExtensionPacking::ext_broadcast);
         enumerate(x_hi).for_each(|(i, x_i)| eq_expand(&mut evals, x_i, i));
-        Self::ExtPacking(evals)
+        Self::ext_packing(evals)
     }
 
     pub fn num_vars(&self) -> usize {
@@ -96,15 +105,41 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        let evals = self;
+        op_multi_poly!(|evals| evals.len())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn split_at(&'a self, mid: usize) -> (Self, Self) {
+        match self {
+            Self::Base(evals) => {
+                let (lo, hi) = evals.split_at(mid);
+                (Self::base(lo), Self::base(hi))
+            }
+            Self::Ext(evals) => {
+                let (lo, hi) = evals.split_at(mid);
+                (Self::ext(lo), Self::ext(hi))
+            }
+            Self::ExtPacking(evals) => {
+                let (lo, hi) = evals.split_at(mid);
+                (Self::ext_packing(lo), Self::ext_packing(hi))
+            }
+        }
+    }
+
     pub fn fix_last_var(&mut self, x_i: E) {
         match self {
             Self::Base(evals) => *self = Self::fix_last_var_from_base(evals, x_i),
-            Self::Ext(evals) => fix_last_var(evals, x_i),
+            Self::Ext(evals) => fix_last_var(evals.to_mut(), x_i),
             Self::ExtPacking(evals) => {
                 let x_i = E::ExtensionPacking::ext_broadcast(x_i);
-                fix_last_var(evals, x_i);
+                fix_last_var(evals.to_mut(), x_i);
                 if evals.len() == 1 {
-                    *self = Self::Ext(evals[0].ext_unpack());
+                    *self = Self::ext(evals[0].ext_unpack());
                 }
             }
         }
@@ -112,11 +147,11 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
 
     fn fix_last_var_from_base(evals: &[F], x_i: E) -> Self {
         if E::D == 1 || F::Packing::WIDTH == 1 || evals.len() <= 2 * F::Packing::WIDTH {
-            Self::Ext(fix_last_var_from_base(evals, x_i))
+            Self::ext(fix_last_var_from_base(evals, x_i))
         } else {
             let evals = F::Packing::pack_slice(evals);
             let x_i = E::ExtensionPacking::ext_broadcast(x_i);
-            Self::ExtPacking(fix_last_var_from_base(evals, x_i))
+            Self::ext_packing(fix_last_var_from_base(evals, x_i))
         }
     }
 
@@ -162,7 +197,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
     pub fn to_ext(&self) -> Vec<E> {
         match self {
             Self::Base(evals) => evals.iter().copied().map(E::from_base).collect(),
-            Self::Ext(evals) => evals.clone(),
+            Self::Ext(evals) => evals.to_vec(),
             Self::ExtPacking(evals) => E::ExtensionPacking::ext_unpack_slice(evals),
         }
     }
@@ -170,7 +205,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
     pub fn into_ext(self) -> Vec<E> {
         match self {
             Self::Base(evals) => evals.iter().copied().map(E::from_base).collect(),
-            Self::Ext(evals) => evals,
+            Self::Ext(evals) => evals.into_owned(),
             Self::ExtPacking(evals) => E::ExtensionPacking::ext_unpack_slice(&evals),
         }
     }
@@ -215,6 +250,34 @@ fn eq_expand<F: AbstractField>(evals: &mut [F], x_i: F, i: usize) {
 
 pub fn eq_eval<E: Field>(x: &[E], y: &[E]) -> E {
     E::product(izip!(x, y).map(|(&x, &y)| (x * y).double() + E::ONE - x - y))
+}
+
+#[macro_export]
+macro_rules! op_multi_poly {
+    (|$a:ident| $op:expr, |$b_out:ident| $op_b_out:expr, |$p_out:ident| $op_p_out:expr $(,)?) => {
+        match $a {
+            $crate::poly::multilinear::MultiPoly::Base(a) => {
+                let $a = a;
+                let $b_out = $op;
+                $op_b_out
+            }
+            $crate::poly::multilinear::MultiPoly::Ext(a) => {
+                let $a = a;
+                $op
+            }
+            $crate::poly::multilinear::MultiPoly::ExtPacking(a) => {
+                let $a = a;
+                let $p_out = $op;
+                $op_p_out
+            }
+        }
+    };
+    (|$a:ident| $op:expr, $op_b_out:expr, $op_p_out:expr $(,)?) => {
+        op_multi_poly!(|$a| $op, |out| $op_b_out(out), |out| $op_p_out(out))
+    };
+    (|$a:ident| $op:expr $(,)?) => {
+        op_multi_poly!(|$a| $op, |out| out, |out| out)
+    };
 }
 
 #[macro_export]
@@ -270,7 +333,6 @@ mod test {
         poly::multilinear::MultiPoly,
     };
     use rand::{rngs::StdRng, SeedableRng};
-    use std::borrow::Cow;
 
     mod definition {
         use crate::field::{ExtensionField, Field};
@@ -319,7 +381,7 @@ mod test {
             for num_vars in 0..10 {
                 let x = E::random_vec(num_vars, &mut rng);
                 let evals = F::random_vec(1 << num_vars, &mut rng);
-                let poly = MultiPoly::Base(Cow::Borrowed(&evals));
+                let poly = MultiPoly::base(&evals);
                 assert_eq!(
                     x.iter()
                         .rfold(poly.clone(), |mut poly, x_i| {
@@ -332,7 +394,7 @@ mod test {
                 assert_eq!(poly.evaluate(&x), definition::evaluate(&evals, &x));
 
                 let evals = E::random_vec(1 << num_vars, &mut rng);
-                let poly = MultiPoly::Ext(evals.clone());
+                let poly = MultiPoly::ext(&evals);
                 assert_eq!(poly.evaluate(&x), definition::evaluate(&evals, &x));
             }
         }

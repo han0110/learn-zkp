@@ -64,7 +64,7 @@ pub trait RandomFoldableCode<F: Field>: Debug + Send + Sync {
     fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GenericRandomFoldableCode<F> {
     log2_c: usize,
     d: usize,
@@ -183,39 +183,5 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         let t = self.ts()[i][j];
         let weight = self.weights[i][j];
         l + (r_i - t) * (r - l) * weight
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::basefold::code::{GenericRandomFoldableCode, RandomFoldableCode};
-    use p3::{
-        field::{AbstractField, BabyBear},
-        matrix::dense::RowMajorMatrix,
-    };
-    use rand::{rngs::StdRng, SeedableRng};
-
-    #[test]
-    fn generic() {
-        type F = BabyBear;
-        let generic = GenericRandomFoldableCode::reed_solomon_g_0_with_random_ts(
-            1,
-            2,
-            1,
-            StdRng::seed_from_u64(0),
-        );
-
-        let num_polys = 1;
-        let evals = RowMajorMatrix::new(
-            (0..num_polys * generic.k_d())
-                .map(F::from_canonical_usize)
-                .collect(),
-            num_polys,
-        );
-        let w = generic.batch_encode(evals.as_view());
-
-        println!("{evals:?}");
-        // [844685049, 240418660, 743363324, 604174650, 912397389, 222003771, 1741417964, 991358111, 1168580872, 1772847267, 1269902617, 1409091313, 1100868604, 1791262260, 271848113, 1021908020]
-        println!("{w:?}");
     }
 }

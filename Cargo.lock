@@ -543,6 +543,7 @@ name = "sumcheck"
 version = "0.1.0"
 dependencies = [
  "auto_impl",
+ "derive_more",
  "p3",
  "rand",
  "util",

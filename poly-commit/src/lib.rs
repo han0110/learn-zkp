@@ -7,7 +7,7 @@ pub type MultiPolyEvalPoint<F> = Vec<F>;
 
 pub type UniPolyEvalPoint<F> = F;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PolyEvals<E, P> {
     pub values: Vec<E>,
     pub point: P,
@@ -68,11 +68,10 @@ pub mod test {
     {
         let mut rng = StdRng::from_entropy();
         for ((num_vars, num_polys), num_points) in
+            // TODO: Support multi-poly and multi-point
             // (0..10).cartesian_product(1..10).cartesian_product(1..10)
             (0..10).cartesian_product(1..2).cartesian_product(1..2)
         {
-            dbg!(num_vars);
-
             let (config, polys) = f(num_vars, num_polys, &mut rng);
 
             let pcs = P::setup(config).unwrap();

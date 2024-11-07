@@ -17,14 +17,14 @@ mod code;
 
 pub use code::GenericRandomFoldableCode;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Basefold<F, E, R, M> {
     code: R,
     mmcs: M,
     mmcs_ext: ExtensionMmcs<F, E, M>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BasefoldConfig<R, M> {
     pub code: R,
     pub mmcs: M,
@@ -43,7 +43,7 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BasefoldProof<F: Field, E: ExtensionField<F>, M: Mmcs<F>> {
     sum_check: SumcheckProof<E>,
     final_poly: Vec<E>,
@@ -54,7 +54,7 @@ pub struct BasefoldProof<F: Field, E: ExtensionField<F>, M: Mmcs<F>> {
     )>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BasefoldError<F: Field, M: Mmcs<F>> {
     Mmcs(M::Error),
 }
@@ -350,6 +350,8 @@ mod test {
                 GenericRandomFoldableCode::reed_solomon_g_0_with_random_ts(log2_c, log2_k_0, d, rng)
             });
         }
+
+        run::<BabyBear, BabyBear>(1, 1);
         run::<BabyBear, BinomialExtensionField<BabyBear, 5>>(1, 1);
     }
 }

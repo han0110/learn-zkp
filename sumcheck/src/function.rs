@@ -1,6 +1,7 @@
 use core::fmt::Debug;
 use p3::field::{ExtensionField, Field};
 
+pub mod eval;
 pub mod quadratic;
 
 #[auto_impl::auto_impl(&, &mut)]

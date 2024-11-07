@@ -25,8 +25,9 @@ impl<F, E> Quadratic<F, E> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_more::Deref)]
 pub struct QuadraticProver<'a, F: Field, E: ExtensionField<F>> {
+    #[deref]
     f: Quadratic<F, E>,
     polys: Vec<MultiPoly<'a, F, E>>,
 }
@@ -38,14 +39,6 @@ impl<'a, F: Field, E: ExtensionField<F>> QuadraticProver<'a, F, E> {
 
     pub fn into_ext_polys(self) -> Vec<Vec<E>> {
         self.polys.into_iter().map(MultiPoly::into_ext).collect()
-    }
-}
-
-impl<'a, F: Field, E: ExtensionField<F>> Deref for QuadraticProver<'a, F, E> {
-    type Target = Quadratic<F, E>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.f
     }
 }
 
