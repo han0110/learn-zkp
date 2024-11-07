@@ -1,5 +1,5 @@
+use crate::field::Field;
 use core::borrow::Borrow;
-use p3_field::Field;
 
 /// Returns `coeffs[0] + x * coeffs[1] + x^2 * coeffs[2] + ...`
 pub fn horner<F: Field>(

@@ -1,4 +1,4 @@
-pub use itertools::{chain, enumerate, Itertools};
+pub use itertools::{chain, cloned, enumerate, rev, Itertools};
 pub use rayon;
 
 #[macro_export]

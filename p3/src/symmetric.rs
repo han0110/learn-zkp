@@ -1,4 +1,4 @@
-use p3_keccak::Keccak256Hash;
+use crate::keccak::Keccak256Hash;
 use serde::Serialize;
 
 pub use p3_symmetric::*;

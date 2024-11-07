@@ -1,5 +1,4 @@
-use crate::field::dit_butterfly;
-use p3_field::{Field, PackedValue};
+use crate::field::{dit_butterfly, Field, PackedValue};
 use util::{izip, Itertools};
 
 macro_rules! pack_for_each {

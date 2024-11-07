@@ -1,12 +1,32 @@
-use crate::field::{ExtPackedValue, FieldSlice};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue};
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::*;
+use crate::{
+    field::{
+        AbstractExtensionField, AbstractField, ExtPackedValue, ExtensionField, Field, FieldSlice,
+        PackedValue,
+    },
+    matrix::{
+        dense::{RowMajorMatrix, RowMajorMatrixCow},
+        Matrix,
+    },
+};
 use std::borrow::Cow;
-use util::{enumerate, izip, Itertools};
+use util::{enumerate, izip, rayon::prelude::*, Itertools};
 
-pub fn interpolate<F: Field>(mut evals: RowMajorMatrix<F>) -> RowMajorMatrix<F> {
+pub fn interpolate<'a, F: Field>(evals: impl Into<Cow<'a, [F]>>) -> Vec<F> {
+    let mut evals = evals.into().into_owned();
+    debug_assert!(evals.len().is_power_of_two());
+    for i in 0..evals.len().ilog2() {
+        let chunk_size = 1 << (i + 1);
+        evals.chunks_mut(chunk_size).for_each(|evals| {
+            let (lo, mut hi) = evals.split_at_mut(chunk_size >> 1);
+            hi.slice_sub_assign(lo);
+        })
+    }
+    evals
+}
+
+pub fn batch_interpolate<F: Field>(evals: RowMajorMatrixCow<F>) -> RowMajorMatrix<F> {
     debug_assert!(evals.height().is_power_of_two());
+    let mut evals = evals.to_row_major_matrix();
     for i in 0..evals.height().ilog2() {
         let chunk_size = 1 << (i + 1);
         evals.par_row_chunks_mut(chunk_size).for_each(|mut evals| {
@@ -22,7 +42,7 @@ pub fn transpose<F: Field>(evals: &RowMajorMatrix<F>) -> Vec<Vec<F>> {
         .map(|offset| {
             evals.values[offset..]
                 .iter()
-                .step_by(evals.height())
+                .step_by(evals.width())
                 .copied()
                 .collect()
         })
@@ -43,9 +63,14 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
         Self::Base(evals.into())
     }
 
-    pub fn eq(x: &[E], scalar: E) -> Self {
-        if E::D == 1 || F::Packing::WIDTH == 1 || (1 << x.len()) <= F::Packing::WIDTH {
-            let mut evals = E::zero_vec(1 << x.len());
+    pub fn eq<'t>(
+        x: impl IntoIterator<IntoIter: ExactSizeIterator, Item = &'t E>,
+        scalar: E,
+    ) -> Self {
+        let mut x = x.into_iter();
+        let num_vars = x.len();
+        if E::D == 1 || F::Packing::WIDTH == 1 || (1 << num_vars) <= F::Packing::WIDTH {
+            let mut evals = E::zero_vec(1 << num_vars);
             evals[0] = scalar;
             enumerate(x).for_each(|(i, x_i)| eq_expand(&mut evals, *x_i, i));
             return Self::Ext(evals);
@@ -53,12 +78,12 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
 
         let mut lo = E::zero_vec(F::Packing::WIDTH);
         lo[0] = scalar;
-        let (x_lo, x_hi) = x.split_at(F::Packing::WIDTH.ilog2() as usize);
+        let x_lo = x.by_ref().take(F::Packing::WIDTH.ilog2() as usize);
         enumerate(x_lo).for_each(|(i, x_i)| eq_expand(&mut lo, *x_i, i));
 
-        let mut evals = E::ExtensionPacking::zero_vec((1 << x.len()) / F::Packing::WIDTH);
+        let mut evals = E::ExtensionPacking::zero_vec((1 << num_vars) / F::Packing::WIDTH);
         evals[0] = E::ExtensionPacking::ext_pack(&lo);
-        let x_hi = x_hi.iter().copied().map(E::ExtensionPacking::ext_broadcast);
+        let x_hi = x.copied().map(E::ExtensionPacking::ext_broadcast);
         enumerate(x_hi).for_each(|(i, x_i)| eq_expand(&mut evals, x_i, i));
         Self::ExtPacking(evals)
     }
@@ -76,46 +101,32 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
             Self::Base(evals) => *self = Self::fix_last_var_from_base(evals, x_i),
             Self::Ext(evals) => fix_last_var(evals, x_i),
             Self::ExtPacking(evals) => {
+                let x_i = E::ExtensionPacking::ext_broadcast(x_i);
+                fix_last_var(evals, x_i);
                 if evals.len() == 1 {
-                    let mut evals = evals[0].ext_unpack();
-                    fix_last_var(&mut evals, x_i);
-                    *self = Self::Ext(evals);
-                } else {
-                    let x_i = E::ExtensionPacking::ext_broadcast(x_i);
-                    fix_last_var(evals, x_i);
+                    *self = Self::Ext(evals[0].ext_unpack());
                 }
             }
         }
     }
 
     fn fix_last_var_from_base(evals: &[F], x_i: E) -> Self {
-        if F::D > 1 && F::Packing::WIDTH > 1 && evals.len() > F::Packing::WIDTH {
+        if E::D == 1 || F::Packing::WIDTH == 1 || evals.len() <= 2 * F::Packing::WIDTH {
+            Self::Ext(fix_last_var_from_base(evals, x_i))
+        } else {
             let evals = F::Packing::pack_slice(evals);
             let x_i = E::ExtensionPacking::ext_broadcast(x_i);
             Self::ExtPacking(fix_last_var_from_base(evals, x_i))
-        } else {
-            Self::Ext(fix_last_var_from_base(evals, x_i))
         }
     }
 
     pub fn evaluate(&self, x: &[E]) -> E {
-        fn recurse<F: AbstractField + Copy>(evals: &[F], x: &[F]) -> F {
-            debug_assert_eq!(evals.len(), 1 << x.len());
-            match x {
-                [] => evals[0],
-                &[ref x @ .., x_i] => {
-                    let (lo, hi) = evals.split_at(evals.len() / 2);
-                    let (lo, hi) = (recurse(lo, x), recurse(hi, x));
-                    x_i * (hi - lo) + lo
-                }
-            }
-        }
         match self {
             Self::Base(evals) => x
                 .split_last()
                 .map(|(x_last, x)| Self::fix_last_var_from_base(evals, *x_last).evaluate(x))
                 .unwrap_or_else(|| E::from_base(evals[0])),
-            Self::Ext(evals) => recurse(evals, x),
+            Self::Ext(evals) => evaluate(evals, x),
             Self::ExtPacking(evals) => {
                 let (x_lo, x_hi) = x.split_at(F::Packing::WIDTH.ilog2() as usize);
                 let x_hi = x_hi
@@ -123,7 +134,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
                     .copied()
                     .map(E::ExtensionPacking::ext_broadcast)
                     .collect_vec();
-                recurse(&recurse(evals, &x_hi).ext_unpack(), x_lo)
+                evaluate(&evaluate(evals, &x_hi).ext_unpack(), x_lo)
             }
         }
     }
@@ -180,6 +191,18 @@ fn fix_last_var_from_base<F: AbstractField + Copy, E: AbstractExtensionField<F> 
     izip!(lo, hi)
         .map(|(lo, hi)| x_i * (*hi - *lo) + *lo)
         .collect()
+}
+
+pub fn evaluate<F: AbstractField + Copy>(evals: &[F], x: &[F]) -> F {
+    debug_assert_eq!(evals.len(), 1 << x.len());
+    match x {
+        [] => evals[0],
+        &[ref x @ .., x_i] => {
+            let (lo, hi) = evals.split_at(evals.len() / 2);
+            let (lo, hi) = (evaluate(lo, x), evaluate(hi, x));
+            x_i * (hi - lo) + lo
+        }
+    }
 }
 
 fn eq_expand<F: AbstractField>(evals: &mut [F], x_i: F, i: usize) {
@@ -240,14 +263,17 @@ macro_rules! op_multi_polys {
 
 #[cfg(test)]
 mod test {
-    use crate::{field::FromUniformBytes, poly::multilinear::MultiPoly};
-    use p3_baby_bear::BabyBear;
-    use p3_field::{extension::BinomialExtensionField, ExtensionField, Field};
+    use crate::{
+        field::{
+            extension::BinomialExtensionField, BabyBear, ExtensionField, Field, FromUniformBytes,
+        },
+        poly::multilinear::MultiPoly,
+    };
     use rand::{rngs::StdRng, SeedableRng};
     use std::borrow::Cow;
 
     mod definition {
-        use p3_field::{ExtensionField, Field};
+        use crate::field::{ExtensionField, Field};
         use util::izip;
 
         pub fn eq_evals<E: Field>(x: &[E], scalar: E) -> Vec<E> {

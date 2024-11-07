@@ -431,6 +431,7 @@ dependencies = [
  "derive_more",
  "p3",
  "rand",
+ "sumcheck",
  "util",
 ]
 

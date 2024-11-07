@@ -35,6 +35,10 @@ impl<'a, F: Field, E: ExtensionField<F>> QuadraticProver<'a, F, E> {
     pub fn new(f: Quadratic<F, E>, polys: Vec<MultiPoly<'a, F, E>>) -> Self {
         Self { f, polys }
     }
+
+    pub fn into_ext_polys(self) -> Vec<Vec<E>> {
+        self.polys.into_iter().map(MultiPoly::into_ext).collect()
+    }
 }
 
 impl<'a, F: Field, E: ExtensionField<F>> Deref for QuadraticProver<'a, F, E> {

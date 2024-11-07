@@ -1,5 +1,5 @@
+use crate::field::{extension::Complex, AbstractField, PackedValue, PrimeField32, PrimeField64};
 use core::{array::from_fn, iter::repeat_with};
-use p3_field::{extension::Complex, AbstractField, PackedValue, PrimeField32, PrimeField64};
 use rand::RngCore;
 
 pub trait FromUniformBytes: Sized {

@@ -1,12 +1,23 @@
-use crate::field::FromUniformBytes;
+use crate::{
+    field::{AbstractExtensionField, ExtensionField, Field, FromUniformBytes},
+    keccak::Keccak256Hash,
+    symmetric::CryptographicHasher,
+};
 use core::{fmt::Debug, marker::PhantomData};
-use p3_field::{ExtensionField, Field};
-use p3_keccak::Keccak256Hash;
-use p3_symmetric::CryptographicHasher;
+use serde::Serialize;
 
 pub use p3_challenger::*;
 
-#[derive(Debug)]
+pub trait FieldChallengerExt<F: Field>: FieldChallenger<F> {
+    fn observe_ext_slice<EF: AbstractExtensionField<F>>(&mut self, exts: &[EF]) {
+        exts.iter()
+            .for_each(|ext| self.observe_slice(ext.as_base_slice()));
+    }
+}
+
+impl<F: Field, T: FieldChallenger<F>> FieldChallengerExt<F> for T {}
+
+#[derive(Clone, Debug)]
 pub struct GenericChallenger<F, H>
 where
     H: CryptographicHasher<u8, [u8; 32]>,
@@ -33,17 +44,14 @@ impl<F> GenericChallenger<F, Keccak256Hash> {
     }
 }
 
-impl<F, E, H> CanObserve<E> for GenericChallenger<F, H>
+impl<F, T, H> CanObserve<T> for GenericChallenger<F, H>
 where
-    F: Field + FromUniformBytes,
-    E: ExtensionField<F>,
+    T: Serialize,
     H: CryptographicHasher<u8, [u8; 32]>,
 {
-    fn observe(&mut self, value: E) {
-        value.as_base_slice().iter().for_each(|base| {
-            self.inner
-                .observe_slice(&bincode::serialize(&base).unwrap());
-        });
+    fn observe(&mut self, value: T) {
+        self.inner
+            .observe_slice(&bincode::serialize(&value).unwrap());
     }
 }
 
@@ -70,10 +78,9 @@ where
     }
 }
 
-impl<F, E, H> FieldChallenger<E> for GenericChallenger<F, H>
+impl<F, H> FieldChallenger<F> for GenericChallenger<F, H>
 where
     F: Sync + Field + FromUniformBytes,
-    E: Sync + ExtensionField<F>,
     H: Sync + CryptographicHasher<u8, [u8; 32]>,
 {
 }

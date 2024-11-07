@@ -1,4 +1,4 @@
-use p3_field::{AbstractExtensionField, ExtensionField, Field, PackedValue};
+use crate::field::{AbstractExtensionField, ExtensionField, Field, PackedValue};
 use util::izip;
 
 pub trait ExtPackedValue<F: Field, E: ExtensionField<F, ExtensionPacking = Self>>:
