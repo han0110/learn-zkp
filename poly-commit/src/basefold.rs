@@ -8,8 +8,8 @@ use p3::{
     poly::multilinear::{eq_eval, evaluate, interpolate, transpose, MultiPoly},
 };
 use sumcheck::{
-    function::quadratic::{Quadratic, QuadraticProver},
-    prove_sumcheck_round, verify_sumcheck_round, SumcheckProof,
+    function::eval::{Eval, EvalProver},
+    prove_sumcheck_round, verify_sumcheck_round, SumcheckProof, SumcheckSubclaim,
 };
 use util::{cloned, izip, rev, Itertools};
 
@@ -129,17 +129,16 @@ where
         let poly = &polys[0];
         let point = &evals[0].point;
         let num_vars = point.len();
+        let claim = evals[0].values[0];
 
-        let mut claim = evals[0].values[0];
         let mut pi = cloned(&self.mmcs.get_matrices(&comm_data.codewords)[0].values)
             .map(E::from)
             .collect_vec();
-        let mut sumcheck_prover = QuadraticProver::new(
-            Quadratic::new(num_vars, vec![(E::ONE, 0, 1)]),
-            vec![MultiPoly::base(poly), MultiPoly::eq(point, E::ONE)],
-        );
+        let mut sumcheck_prover =
+            EvalProver::new(Eval::new(num_vars, point), MultiPoly::base(poly));
+        let mut sumcheck_subclaim = SumcheckSubclaim::new(claim);
 
-        let (pi_comms, compressed_round_polys, _r) = rev(0..self.code.d())
+        let (pi_comms, compressed_round_polys) = rev(0..self.code.d())
             .map(|i| {
                 let pi_comm = self.mmcs_ext.commit_matrix(RowMajorMatrix::new(
                     izip!(&pi[..pi.len() / 2], &pi[pi.len() / 2..])
@@ -149,18 +148,19 @@ where
                 ));
                 challenger.observe(pi_comm.0.clone());
 
-                let (compressed_round_poly, r_i) = prove_sumcheck_round(
+                let compressed_round_poly = prove_sumcheck_round(
                     &mut sumcheck_prover,
-                    &mut claim,
+                    &mut sumcheck_subclaim,
                     i + self.code.log2_k_0(),
                     &mut challenger,
                 );
-                pi = self.code.fold(i, take(&mut pi), r_i);
-                (pi_comm, compressed_round_poly, r_i)
+                let r_i = sumcheck_subclaim.r_rev().last().unwrap();
+                pi = self.code.fold(i, take(&mut pi), *r_i);
+                (pi_comm, compressed_round_poly)
             })
-            .multiunzip::<(Vec<_>, Vec<_>, Vec<_>)>();
+            .unzip::<_, _, Vec<_>, Vec<_>>();
 
-        let final_poly = sumcheck_prover.into_ext_polys().into_iter().next().unwrap();
+        let final_poly = sumcheck_prover.into_ext_poly();
 
         challenger.observe_ext_slice(&final_poly);
 
@@ -212,36 +212,36 @@ where
         let comm = &comm;
         let point = &evals[0].point;
         let num_vars = point.len();
+        let claim = evals[0].values[0];
 
-        let mut claim = evals[0].values[0];
-        let sumcheck_func = Quadratic::new(num_vars, vec![(E::ONE, 0, 1)]);
+        let sumcheck_func = Eval::new(num_vars, point);
+        let mut sumcheck_subclaim = SumcheckSubclaim::new(claim);
 
-        let r_rev = izip!(
+        izip!(
             rev(0..self.code.d()),
             &proof.pi_comms,
             &proof.sum_check.compressed_round_polys
         )
-        .map(|(round, pi_comm, compressed_round_poly)| {
+        .for_each(|(round, pi_comm, compressed_round_poly)| {
             challenger.observe(pi_comm.clone());
 
             verify_sumcheck_round(
                 &sumcheck_func,
-                &mut claim,
+                &mut sumcheck_subclaim,
                 round,
                 compressed_round_poly,
                 &mut challenger,
             )
-        })
-        .collect_vec();
+        });
 
-        let r = rev(r_rev).collect_vec();
+        let r = sumcheck_subclaim.r().copied().collect_vec();
 
         challenger.observe_ext_slice(&proof.final_poly);
 
         let (point_lo, point_hi) = evals[0].point.split_at(self.code.log2_k_0());
         assert_eq!(
             evaluate(&proof.final_poly, point_lo) * eq_eval(point_hi, &r),
-            claim
+            *sumcheck_subclaim
         );
 
         let pi_0 = self.code.encode0(&interpolate(&proof.final_poly));

@@ -1,5 +1,8 @@
-use crate::{SumcheckFunction, SumcheckFunctionProver};
-use core::{marker::PhantomData, ops::Deref};
+use crate::{
+    function::forward_impl_sumcheck_function, SumcheckFunction, SumcheckFunctionProver,
+    SumcheckSubclaim,
+};
+use core::marker::PhantomData;
 use p3::{
     field::{ExtPackedValue, ExtensionField, Field, FieldArray},
     op_multi_polys,
@@ -51,48 +54,32 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Quadratic<F, E> 
         self.pairs.iter().map(|(_, f, g)| f.max(g)).max().unwrap() + 1
     }
 
-    fn evaluate(&self, evals: &[E]) -> E {
+    fn evaluate(&self, evals: &[E], _: &[E]) -> E {
         self.pairs
             .iter()
             .map(|(scalar, f, g)| (*scalar * evals[*f] * evals[*g]))
             .sum()
     }
 
-    fn compress_round_poly(&self, _: usize, round_poly: &[E]) -> Vec<E> {
+    fn compress_round_poly(&self, _: usize, _: &SumcheckSubclaim<E>, round_poly: &[E]) -> Vec<E> {
         vec![round_poly[0], round_poly[2]]
     }
 
-    fn decompress_round_poly(&self, _: usize, claim: E, compressed_round_poly: &[E]) -> Vec<E> {
+    fn decompress_round_poly(
+        &self,
+        _: usize,
+        subclaim: &SumcheckSubclaim<E>,
+        compressed_round_poly: &[E],
+    ) -> Vec<E> {
         let &[coeff_0, coeff_2] = compressed_round_poly else {
             unreachable!()
         };
-        let coeff_1 = claim - coeff_0.double() - coeff_2;
+        let coeff_1 = **subclaim - coeff_0.double() - coeff_2;
         vec![coeff_0, coeff_1, coeff_2]
     }
 }
 
-impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for QuadraticProver<'a, F, E> {
-    fn num_vars(&self) -> usize {
-        self.deref().num_vars()
-    }
-
-    fn num_polys(&self) -> usize {
-        self.deref().num_polys()
-    }
-
-    fn evaluate(&self, evals: &[E]) -> E {
-        self.deref().evaluate(evals)
-    }
-
-    fn compress_round_poly(&self, round: usize, round_poly: &[E]) -> Vec<E> {
-        self.deref().compress_round_poly(round, round_poly)
-    }
-
-    fn decompress_round_poly(&self, round: usize, claim: E, compressed_round_poly: &[E]) -> Vec<E> {
-        self.deref()
-            .decompress_round_poly(round, claim, compressed_round_poly)
-    }
-}
+forward_impl_sumcheck_function!(impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for QuadraticProver<'a, F, E>);
 
 impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
     for QuadraticProver<'a, F, E>
@@ -112,7 +99,7 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
             .sum()
     }
 
-    fn compute_round_poly(&mut self, round: usize, claim: E) -> Vec<E> {
+    fn compute_round_poly(&mut self, round: usize, subclaim: &SumcheckSubclaim<E>) -> Vec<E> {
         let FieldArray([coeff_0, coeff_2]) = self
             .pairs
             .iter()
@@ -132,7 +119,7 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
                 sum * *scalar
             })
             .sum();
-        self.decompress_round_poly(round, claim, &[coeff_0, coeff_2])
+        self.decompress_round_poly(round, subclaim, &[coeff_0, coeff_2])
     }
 
     fn fix_last_var(&mut self, x_i: E) {

@@ -1,15 +1,12 @@
-use crate::{SumcheckFunction, SumcheckFunctionProver};
+use crate::{SumcheckFunction, SumcheckFunctionProver, SumcheckSubclaim};
 use core::{iter::zip, marker::PhantomData};
-use p3::{
-    field::{ExtensionField, Field},
-    poly::univariate::horner,
-};
+use p3::field::{ExtensionField, Field};
 use util::{chain, izip, Itertools};
 
 #[derive(Debug)]
 pub struct Batch<F: Field, E: ExtensionField<F>, T> {
     fs: Vec<T>,
-    claims: Vec<E>,
+    subclaims: Vec<SumcheckSubclaim<E>>,
     round_polys: Vec<Option<Vec<E>>>,
     alpha: E,
     _marker: PhantomData<F>,
@@ -23,10 +20,11 @@ impl<F: Field, E: ExtensionField<F>, T: SumcheckFunction<F, E>> Batch<F, E, T> {
                 *claim *= E::TWO.powers().nth(max_num_vars - f.num_vars()).unwrap()
             }
         });
+        let subclaims = claims.into_iter().map(SumcheckSubclaim::new).collect();
         let round_polys = vec![None; fs.len()];
         Self {
             fs,
-            claims,
+            subclaims,
             round_polys,
             alpha,
             _marker: PhantomData,
@@ -34,8 +32,8 @@ impl<F: Field, E: ExtensionField<F>, T: SumcheckFunction<F, E>> Batch<F, E, T> {
     }
 
     pub fn claim(&self) -> E {
-        izip!(&self.claims, self.alphas())
-            .map(|(claim, alpha)| *claim * alpha)
+        izip!(&self.subclaims, self.alphas())
+            .map(|(subclaim, alpha)| **subclaim * alpha)
             .sum()
     }
 
@@ -55,28 +53,36 @@ impl<F: Field, E: ExtensionField<F>, T: SumcheckFunction<F, E>> SumcheckFunction
         self.fs.iter().map(|f| f.num_polys()).sum()
     }
 
-    fn evaluate(&self, mut evals: &[E]) -> E {
+    fn evaluate(&self, mut evals: &[E], r_rev: &[E]) -> E {
         izip!(&self.fs, self.alphas())
             .map(|(f, alpha)| {
-                let eval = f.evaluate(&evals[..f.num_polys()]);
+                let eval = f.evaluate(
+                    &evals[..f.num_polys()],
+                    &r_rev[r_rev.len() - f.num_vars()..],
+                );
                 evals = &evals[f.num_polys()..];
                 alpha * eval
             })
             .sum()
     }
 
-    fn compress_round_poly(&self, _: usize, round_poly: &[E]) -> Vec<E> {
+    fn compress_round_poly(&self, _: usize, _: &SumcheckSubclaim<E>, round_poly: &[E]) -> Vec<E> {
         chain![round_poly.first(), round_poly.iter().skip(2)]
             .copied()
             .collect()
     }
 
-    fn decompress_round_poly(&self, _: usize, claim: E, compressed_round_poly: &[E]) -> Vec<E> {
+    fn decompress_round_poly(
+        &self,
+        _: usize,
+        subclaim: &SumcheckSubclaim<E>,
+        compressed_round_poly: &[E],
+    ) -> Vec<E> {
         match compressed_round_poly {
-            [] => vec![claim],
-            &[coeff_0] => vec![coeff_0, claim - coeff_0.double()],
+            [] => vec![**subclaim],
+            &[coeff_0] => vec![coeff_0, **subclaim - coeff_0.double()],
             &[coeff_0, ref rest @ ..] => {
-                let coeff_1 = claim - coeff_0.double() - rest.iter().copied().sum::<E>();
+                let coeff_1 = **subclaim - coeff_0.double() - rest.iter().copied().sum::<E>();
                 chain![[coeff_0, coeff_1], rest.iter().copied()].collect()
             }
         }
@@ -87,26 +93,26 @@ impl<F: Field, E: ExtensionField<F>, T: SumcheckFunctionProver<F, E>> SumcheckFu
     for Batch<F, E, T>
 {
     fn compute_sum(&self, round: usize) -> E {
-        izip!(&self.fs, &self.claims, self.alphas())
-            .map(|(f, claim, alpha)| {
+        izip!(&self.fs, &self.subclaims, self.alphas())
+            .map(|(f, subclaim, alpha)| {
                 let sum = if round < f.num_vars() {
                     f.compute_sum(round)
                 } else {
-                    *claim
+                    **subclaim
                 };
                 alpha * sum
             })
             .sum()
     }
 
-    fn compute_round_poly(&mut self, round: usize, _: E) -> Vec<E> {
-        let round_polys = izip!(&mut self.fs, &mut self.claims, &mut self.round_polys)
-            .map(|(f, claim, round_poly)| {
+    fn compute_round_poly(&mut self, round: usize, _: &SumcheckSubclaim<E>) -> Vec<E> {
+        let round_polys = izip!(&mut self.fs, &mut self.subclaims, &mut self.round_polys)
+            .map(|(f, subclaim, round_poly)| {
                 if round < f.num_vars() {
-                    *round_poly = Some(f.compute_round_poly(round, *claim));
+                    *round_poly = Some(f.compute_round_poly(round, subclaim));
                     round_poly.clone().unwrap()
                 } else {
-                    vec![claim.halve()]
+                    vec![subclaim.halve()]
                 }
             })
             .collect_vec();
@@ -126,13 +132,13 @@ impl<F: Field, E: ExtensionField<F>, T: SumcheckFunctionProver<F, E>> SumcheckFu
     }
 
     fn fix_last_var(&mut self, x_i: E) {
-        izip!(&mut self.fs, &mut self.claims, &mut self.round_polys).for_each(
-            |(f, claim, round_poly)| {
+        izip!(&mut self.fs, &mut self.subclaims, &mut self.round_polys).for_each(
+            |(f, subclaim, round_poly)| {
                 if let Some(round_poly) = round_poly {
                     f.fix_last_var(x_i);
-                    *claim = horner(round_poly, x_i);
+                    subclaim.reduce(round_poly, x_i);
                 } else {
-                    *claim = claim.halve();
+                    subclaim.value = subclaim.halve();
                 }
             },
         );
@@ -152,6 +158,7 @@ mod test {
     use crate::{
         function::{
             batch::Batch,
+            eval::{Eval, EvalProver},
             quadratic::{Quadratic, QuadraticProver},
             SumcheckFunction, SumcheckFunctionProver,
         },
@@ -177,6 +184,30 @@ mod test {
                             .map(|_| MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng)))
                             .collect();
                         QuadraticProver::new(f, polys)
+                    })
+                    .collect_vec();
+                let claims = fs
+                    .iter()
+                    .map(|f| f.compute_sum(f.num_vars().saturating_sub(1)))
+                    .collect();
+                Batch::new(fs, claims, E::random(rng))
+            });
+        }
+
+        run::<BabyBear, BabyBear>();
+        run::<BabyBear, BinomialExtensionField<BabyBear, 5>>();
+    }
+
+    #[test]
+    fn batch_eval() {
+        fn run<F: Field + FromUniformBytes, E: ExtensionField<F> + FromUniformBytes>() {
+            run_sumcheck(|num_vars, rng| {
+                let fs = (0..3)
+                    .map(|idx| {
+                        let num_vars = num_vars.saturating_sub(idx);
+                        let f = Eval::new(num_vars, &E::random_vec(num_vars, &mut *rng));
+                        let poly = MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng));
+                        EvalProver::new(f, poly)
                     })
                     .collect_vec();
                 let claims = fs

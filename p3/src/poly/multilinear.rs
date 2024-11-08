@@ -248,7 +248,10 @@ fn eq_expand<F: AbstractField>(evals: &mut [F], x_i: F, i: usize) {
     });
 }
 
-pub fn eq_eval<E: Field>(x: &[E], y: &[E]) -> E {
+pub fn eq_eval<'a, E: Field>(
+    x: impl IntoIterator<Item = &'a E>,
+    y: impl IntoIterator<Item = &'a E>,
+) -> E {
     E::product(izip!(x, y).map(|(&x, &y)| (x * y).double() + E::ONE - x - y))
 }
 

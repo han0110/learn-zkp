@@ -1,92 +1,25 @@
-use crate::{SumcheckFunction, SumcheckFunctionProver};
-use core::{marker::PhantomData, ops::Deref};
-use p3::{
-    field::{batch_multiplicative_inverse, ExtPackedValue, ExtensionField, Field},
-    op_multi_polys,
-    poly::multilinear::{evaluate, MultiPoly},
+use crate::{
+    function::{
+        eval_imp::{EvalImpr, EvalImprProver},
+        forward_impl_sumcheck_function,
+    },
+    SumcheckFunction, SumcheckFunctionProver, SumcheckSubclaim,
 };
-use util::{izip, Itertools};
+use p3::{
+    field::{ExtensionField, Field},
+    poly::multilinear::{eq_eval, MultiPoly},
+};
+use util::rev;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_more::Deref)]
 pub struct Eval<F, E> {
-    num_vars: usize,
-    r: Vec<E>,
-    r_inv: Vec<E>,
-    _marker: PhantomData<F>,
+    inner: EvalImpr<F, E>,
 }
 
 impl<F: Field, E: ExtensionField<F>> Eval<F, E> {
     pub fn new(num_vars: usize, r: &[E]) -> Self {
         Self {
-            num_vars,
-            r: r.to_vec(),
-            r_inv: batch_multiplicative_inverse(r),
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn r_i(&self, round: usize) -> E {
-        self.r[round]
-    }
-
-    pub fn r_i_inv(&self, round: usize) -> E {
-        self.r_inv[round]
-    }
-
-    pub fn eval_1(&self, round: usize, claim: E, eval_0: E) -> E {
-        (claim - (E::ONE - self.r_i(round)) * eval_0) * self.r_i_inv(round)
-    }
-}
-
-#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut)]
-pub struct HalfEq<F: Field, E: ExtensionField<F>> {
-    one_minus_r_inv: Vec<E>,
-    #[deref]
-    #[deref_mut]
-    poly: MultiPoly<'static, F, E>,
-}
-
-impl<F: Field, E: ExtensionField<F>> HalfEq<F, E> {
-    pub fn new(r: &[E]) -> Self {
-        let r = &r[..r.len().saturating_sub(1)];
-        let one_minus_r_inv =
-            batch_multiplicative_inverse(&r.iter().map(|r_i| E::ONE - *r_i).collect_vec());
-        let poly = MultiPoly::eq(r, E::ONE);
-        Self {
-            one_minus_r_inv,
-            poly,
-        }
-    }
-
-    /// Returns `inv((1 - r_{round}) * (1 - r_{round+1}) * ... * (1 - r_{d-2}))`.
-    pub fn correcting_factor(&self, round: usize) -> E {
-        self.one_minus_r_inv
-            .iter()
-            .skip(round)
-            .copied()
-            .product::<E>()
-    }
-
-    pub fn halve(&mut self) {
-        match &mut self.poly {
-            MultiPoly::Base(evals) => {
-                let mid = evals.len() / 2;
-                evals.to_mut().truncate(mid)
-            }
-            MultiPoly::Ext(evals) => {
-                let mid = evals.len() / 2;
-                evals.to_mut().truncate(mid)
-            }
-            MultiPoly::ExtPacking(evals) => {
-                if evals.len() == 1 {
-                    let mut evals = E::ExtensionPacking::ext_unpack_slice(evals);
-                    evals.truncate(evals.len() / 2);
-                    self.poly = MultiPoly::ext(evals);
-                } else {
-                    let mid = evals.len() / 2;
-                    evals.to_mut().truncate(mid)
-                }
-            }
+            inner: EvalImpr::new(num_vars, r),
         }
     }
 }
@@ -95,110 +28,90 @@ impl<F: Field, E: ExtensionField<F>> HalfEq<F, E> {
 pub struct EvalProver<'a, F: Field, E: ExtensionField<F>> {
     #[deref]
     f: Eval<F, E>,
-    half_eq: HalfEq<F, E>,
-    poly: MultiPoly<'a, F, E>,
+    inner: EvalImprProver<'a, F, E>,
+    inner_subclaim: SumcheckSubclaim<E>,
+    inner_round_poly: [E; 2],
 }
 
 impl<'a, F: Field, E: ExtensionField<F>> EvalProver<'a, F, E> {
     pub fn new(f: Eval<F, E>, poly: MultiPoly<'a, F, E>) -> Self {
-        let half_eq = HalfEq::new(&f.r);
-        Self { f, half_eq, poly }
+        Self {
+            f: f.clone(),
+            inner: EvalImprProver::new(f.inner, poly),
+            inner_subclaim: SumcheckSubclaim::new(E::ZERO),
+            inner_round_poly: [E::ZERO; 2],
+        }
     }
 
     pub fn into_ext_poly(self) -> Vec<E> {
-        self.poly.into_ext()
+        self.inner.into_ext_poly()
     }
 }
 
 impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Eval<F, E> {
     fn num_vars(&self) -> usize {
-        self.num_vars
+        self.inner.num_vars()
     }
 
     fn num_polys(&self) -> usize {
-        1
+        self.inner.num_polys()
     }
 
-    fn evaluate(&self, evals: &[E]) -> E {
-        evals[0]
+    fn evaluate(&self, evals: &[E], r_rev: &[E]) -> E {
+        self.inner.evaluate(evals, r_rev) * eq_eval(self.r(), rev(r_rev))
     }
 
-    fn compress_round_poly(&self, _: usize, round_poly: &[E]) -> Vec<E> {
-        vec![round_poly[0]]
+    fn compress_round_poly(&self, _: usize, _: &SumcheckSubclaim<E>, round_poly: &[E]) -> Vec<E> {
+        vec![round_poly[0], round_poly[2]]
     }
 
-    fn decompress_round_poly(&self, round: usize, claim: E, compressed_round_poly: &[E]) -> Vec<E> {
-        let &[coeff_0] = compressed_round_poly else {
+    fn decompress_round_poly(
+        &self,
+        _: usize,
+        subclaim: &SumcheckSubclaim<E>,
+        compressed_round_poly: &[E],
+    ) -> Vec<E> {
+        let &[coeff_0, coeff_2] = compressed_round_poly else {
             unreachable!()
         };
-        let coeff_1 = self.eval_1(round, claim, coeff_0) - coeff_0;
-        vec![coeff_0, coeff_1]
+        let coeff_1 = **subclaim - coeff_0.double() - coeff_2;
+        vec![coeff_0, coeff_1, coeff_2]
     }
 }
 
-impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalProver<'a, F, E> {
-    fn num_vars(&self) -> usize {
-        self.deref().num_vars()
-    }
-
-    fn num_polys(&self) -> usize {
-        self.deref().num_polys()
-    }
-
-    fn evaluate(&self, evals: &[E]) -> E {
-        self.deref().evaluate(evals)
-    }
-
-    fn compress_round_poly(&self, round: usize, round_poly: &[E]) -> Vec<E> {
-        self.deref().compress_round_poly(round, round_poly)
-    }
-
-    fn decompress_round_poly(&self, round: usize, claim: E, compressed_round_poly: &[E]) -> Vec<E> {
-        self.deref()
-            .decompress_round_poly(round, claim, compressed_round_poly)
-    }
-}
+forward_impl_sumcheck_function!(impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalProver<'a, F, E>);
 
 impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalProver<'a, F, E> {
     fn compute_sum(&self, round: usize) -> E {
-        if self.f.num_vars == 0 {
-            return self.poly.to_ext()[0];
-        }
-
-        let half_eq = &self.half_eq;
-        let (poly_lo, poly_hi) = &self.poly.split_at(self.poly.len() / 2);
-        half_eq.correcting_factor(round)
-            * evaluate(
-                &[poly_lo, poly_hi].map(|poly| {
-                    op_multi_polys!(
-                        |half_eq, poly| izip!(half_eq, poly).map(|(f, g)| *f * *g).sum(),
-                        |sum| E::from(sum),
-                        |sum: E::ExtensionPacking| sum.ext_sum(),
-                    )
-                }),
-                &[self.r_i(round)],
-            )
+        self.inner.compute_sum(round) * self.delta_scalar(round, &self.inner_subclaim)
     }
 
-    fn compute_round_poly(&mut self, round: usize, claim: E) -> Vec<E> {
-        let half_eq = &self.half_eq;
-        let (poly_lo, _) = &self.poly.split_at(self.poly.len() / 2);
-        let coeff_0 = half_eq.correcting_factor(round)
-            * op_multi_polys!(
-                |half_eq, poly_lo| izip!(half_eq, poly_lo).map(|(f, g)| *f * *g).sum(),
-                |sum| E::from(sum),
-                |sum: E::ExtensionPacking| sum.ext_sum(),
-            );
-        self.decompress_round_poly(round, claim, &[coeff_0])
+    fn compute_round_poly(&mut self, round: usize, subclaim: &SumcheckSubclaim<E>) -> Vec<E> {
+        let subclaim = if round == self.num_vars() - 1 {
+            subclaim
+        } else {
+            &self.inner_subclaim
+        };
+        let &[coeff_0, coeff_1] = &self.inner.compute_round_poly(round, subclaim)[..] else {
+            unreachable!()
+        };
+        self.inner_round_poly = [coeff_0, coeff_1];
+
+        let [delta_0, delta_1] = self.delta(round, subclaim);
+        vec![
+            coeff_0 * delta_0,
+            coeff_0 * delta_1 + coeff_1 * delta_0,
+            coeff_1 * delta_1,
+        ]
     }
 
     fn fix_last_var(&mut self, x_i: E) {
-        self.poly.fix_last_var(x_i);
-        self.half_eq.halve();
+        self.inner.fix_last_var(x_i);
+        self.inner_subclaim.reduce(&self.inner_round_poly, x_i);
     }
 
     fn evaluations(&self) -> Option<Vec<E>> {
-        (self.poly.num_vars() == 0).then(|| vec![self.poly.to_ext()[0]])
+        self.inner.evaluations()
     }
 }
 
