@@ -20,7 +20,7 @@ pub use p3_mersenne_31::Mersenne31;
 /// Returns `values[0] + alpha * values[1] + alpha^2 * values[2] + ...`
 pub fn random_linear_combine<F: Field>(
     values: impl IntoIterator<IntoIter: DoubleEndedIterator<Item: Borrow<F>>>,
-    alpha: &F,
+    alpha: F,
 ) -> F {
     horner(values, alpha)
 }

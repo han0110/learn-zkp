@@ -47,6 +47,10 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Quadratic<F, E> 
         self.num_vars
     }
 
+    fn num_polys(&self) -> usize {
+        self.pairs.iter().map(|(_, f, g)| f.max(g)).max().unwrap() + 1
+    }
+
     fn evaluate(&self, evals: &[E]) -> E {
         self.pairs
             .iter()
@@ -62,8 +66,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Quadratic<F, E> 
         let &[coeff_0, coeff_2] = compressed_round_poly else {
             unreachable!()
         };
-        let eval_1 = claim - coeff_0;
-        let coeff_1 = eval_1 - coeff_0 - coeff_2;
+        let coeff_1 = claim - coeff_0.double() - coeff_2;
         vec![coeff_0, coeff_1, coeff_2]
     }
 }
@@ -71,6 +74,10 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Quadratic<F, E> 
 impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for QuadraticProver<'a, F, E> {
     fn num_vars(&self) -> usize {
         self.deref().num_vars()
+    }
+
+    fn num_polys(&self) -> usize {
+        self.deref().num_polys()
     }
 
     fn evaluate(&self, evals: &[E]) -> E {
@@ -105,7 +112,7 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
             .sum()
     }
 
-    fn compute_round_poly(&self, round: usize, claim: E) -> Vec<E> {
+    fn compute_round_poly(&mut self, round: usize, claim: E) -> Vec<E> {
         let FieldArray([coeff_0, coeff_2]) = self
             .pairs
             .iter()

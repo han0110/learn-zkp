@@ -115,6 +115,10 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Eval<F, E> {
         self.num_vars
     }
 
+    fn num_polys(&self) -> usize {
+        1
+    }
+
     fn evaluate(&self, evals: &[E]) -> E {
         evals[0]
     }
@@ -135,6 +139,10 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Eval<F, E> {
 impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalProver<'a, F, E> {
     fn num_vars(&self) -> usize {
         self.deref().num_vars()
+    }
+
+    fn num_polys(&self) -> usize {
+        self.deref().num_polys()
     }
 
     fn evaluate(&self, evals: &[E]) -> E {
@@ -172,7 +180,7 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalPr
             )
     }
 
-    fn compute_round_poly(&self, round: usize, claim: E) -> Vec<E> {
+    fn compute_round_poly(&mut self, round: usize, claim: E) -> Vec<E> {
         let half_eq = &self.half_eq;
         let (poly_lo, _) = &self.poly.split_at(self.poly.len() / 2);
         let coeff_0 = half_eq.correcting_factor(round)
@@ -212,7 +220,8 @@ mod test {
         fn run<F: Field + FromUniformBytes, E: ExtensionField<F> + FromUniformBytes>() {
             run_sumcheck(|num_vars, rng| {
                 let f = Eval::new(num_vars, &E::random_vec(num_vars, &mut *rng));
-                EvalProver::new(f, MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng)))
+                let poly = MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng));
+                EvalProver::new(f, poly)
             });
         }
 

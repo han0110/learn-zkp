@@ -65,7 +65,7 @@ pub fn prove_sumcheck_round<F: Field, E: ExtensionField<F>>(
 
     p.fix_last_var(r_i);
 
-    *claim = horner(&round_poly, &r_i);
+    *claim = horner(&round_poly, r_i);
 
     (compressed_round_poly, r_i)
 }
@@ -114,7 +114,7 @@ pub fn verify_sumcheck_round<F: Field, E: ExtensionField<F>>(
 
     let r_i = challenger.sample_ext_element();
 
-    *claim = horner(&round_poly, &r_i);
+    *claim = horner(&round_poly, r_i);
 
     r_i
 }

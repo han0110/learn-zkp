@@ -1,12 +1,15 @@
 use core::fmt::Debug;
 use p3::field::{ExtensionField, Field};
 
+pub mod batch;
 pub mod eval;
 pub mod quadratic;
 
-#[auto_impl::auto_impl(&, &mut)]
-pub trait SumcheckFunction<F: Field, E: ExtensionField<F>>: Sized + Send + Sync + Debug {
+#[auto_impl::auto_impl(&, &mut, Box)]
+pub trait SumcheckFunction<F: Field, E: ExtensionField<F>>: Send + Sync + Debug {
     fn num_vars(&self) -> usize;
+
+    fn num_polys(&self) -> usize;
 
     fn evaluate(&self, evals: &[E]) -> E;
 
@@ -24,11 +27,11 @@ pub trait SumcheckFunction<F: Field, E: ExtensionField<F>>: Sized + Send + Sync 
     }
 }
 
-#[auto_impl::auto_impl(&mut)]
+#[auto_impl::auto_impl(&mut, Box)]
 pub trait SumcheckFunctionProver<F: Field, E: ExtensionField<F>>: SumcheckFunction<F, E> {
     fn compute_sum(&self, round: usize) -> E;
 
-    fn compute_round_poly(&self, round: usize, claim: E) -> Vec<E>;
+    fn compute_round_poly(&mut self, round: usize, claim: E) -> Vec<E>;
 
     fn fix_last_var(&mut self, x_i: E);
 
