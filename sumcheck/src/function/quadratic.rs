@@ -81,9 +81,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Quadratic<F, E> 
 
 forward_impl_sumcheck_function!(impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for QuadraticProver<'a, F, E>);
 
-impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E>
-    for QuadraticProver<'a, F, E>
-{
+impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for QuadraticProver<'_, F, E> {
     fn compute_sum(&self, _: usize) -> E {
         self.pairs
             .iter()

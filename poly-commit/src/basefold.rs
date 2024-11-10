@@ -54,6 +54,17 @@ pub struct BasefoldProof<F: Field, E: ExtensionField<F>, M: Mmcs<F>> {
     )>,
 }
 
+impl<F: Field, E: ExtensionField<F>, M: Mmcs<F>> Default for BasefoldProof<F, E, M> {
+    fn default() -> Self {
+        Self {
+            sum_check: Default::default(),
+            final_poly: Default::default(),
+            pi_comms: Default::default(),
+            openings: Default::default(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum BasefoldError<F: Field, M: Mmcs<F>> {
     Mmcs(M::Error),
@@ -113,6 +124,10 @@ where
         evals: &[PolyEvals<E, Self::Point>],
         mut challenger: C,
     ) -> Result<Self::Proof, Self::Error> {
+        if evals.is_empty() {
+            return Ok(Default::default());
+        }
+
         let polys = transpose(&comm_data.data);
 
         #[cfg(debug_assertions)]
@@ -128,14 +143,12 @@ where
 
         let poly = &polys[0];
         let point = &evals[0].point;
-        let num_vars = point.len();
         let claim = evals[0].values[0];
 
         let mut pi = cloned(&self.mmcs.get_matrices(&comm_data.codewords)[0].values)
             .map(E::from)
             .collect_vec();
-        let mut sumcheck_prover =
-            EvalProver::new(Eval::new(num_vars, point), MultiPoly::base(poly));
+        let mut sumcheck_prover = EvalProver::new(Eval::new(point), MultiPoly::base(poly));
         let mut sumcheck_subclaim = SumcheckSubclaim::new(claim);
 
         let (pi_comms, compressed_round_polys) = rev(0..self.code.d())
@@ -206,15 +219,18 @@ where
         proof: &Self::Proof,
         mut challenger: C,
     ) -> Result<(), Self::Error> {
+        if evals.is_empty() {
+            return Ok(());
+        }
+
         // TODO: Batch by sumcheck
         assert_eq!(evals.len(), 1);
 
         let comm = &comm;
         let point = &evals[0].point;
-        let num_vars = point.len();
         let claim = evals[0].values[0];
 
-        let sumcheck_func = Eval::new(num_vars, point);
+        let sumcheck_func = Eval::new(point);
         let mut sumcheck_subclaim = SumcheckSubclaim::new(claim);
 
         izip!(

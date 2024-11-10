@@ -1,6 +1,6 @@
 use crate::{
     function::{
-        eval_imp::{EvalImpr, EvalImprProver},
+        eval_impr::{EvalImpr, EvalImprProver},
         forward_impl_sumcheck_function,
     },
     SumcheckFunction, SumcheckFunctionProver, SumcheckSubclaim,
@@ -17,9 +17,9 @@ pub struct Eval<F, E> {
 }
 
 impl<F: Field, E: ExtensionField<F>> Eval<F, E> {
-    pub fn new(num_vars: usize, r: &[E]) -> Self {
+    pub fn new(r: &[E]) -> Self {
         Self {
-            inner: EvalImpr::new(num_vars, r),
+            inner: EvalImpr::new(r),
         }
     }
 }
@@ -81,7 +81,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for Eval<F, E> {
 
 forward_impl_sumcheck_function!(impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalProver<'a, F, E>);
 
-impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalProver<'a, F, E> {
+impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalProver<'_, F, E> {
     fn compute_sum(&self, round: usize) -> E {
         self.inner.compute_sum(round) * self.delta_scalar(round, &self.inner_subclaim)
     }
@@ -132,7 +132,7 @@ mod test {
     fn eval() {
         fn run<F: Field + FromUniformBytes, E: ExtensionField<F> + FromUniformBytes>() {
             run_sumcheck(|num_vars, rng| {
-                let f = Eval::new(num_vars, &E::random_vec(num_vars, &mut *rng));
+                let f = Eval::new(&E::random_vec(num_vars, &mut *rng));
                 let poly = MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng));
                 EvalProver::new(f, poly)
             });

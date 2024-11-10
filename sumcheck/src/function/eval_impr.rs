@@ -12,16 +12,14 @@ use util::{izip, Itertools};
 
 #[derive(Clone, Debug)]
 pub struct EvalImpr<F, E> {
-    num_vars: usize,
     r: Vec<E>,
     r_inv: Vec<E>,
     _marker: PhantomData<F>,
 }
 
 impl<F: Field, E: ExtensionField<F>> EvalImpr<F, E> {
-    pub fn new(num_vars: usize, r: &[E]) -> Self {
+    pub fn new(r: &[E]) -> Self {
         Self {
-            num_vars,
             r: r.to_vec(),
             r_inv: batch_multiplicative_inverse(r),
             _marker: PhantomData,
@@ -45,7 +43,7 @@ impl<F: Field, E: ExtensionField<F>> EvalImpr<F, E> {
     }
 
     pub fn delta_scalar(&self, round: usize, subclaim: &SumcheckSubclaim<E>) -> E {
-        if round == self.num_vars.saturating_sub(1) {
+        if round == self.num_vars().saturating_sub(1) {
             E::ONE
         } else {
             eq_eval(&self.r()[round + 1..], subclaim.r())
@@ -134,7 +132,7 @@ impl<'a, F: Field, E: ExtensionField<F>> EvalImprProver<'a, F, E> {
 
 impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalImpr<F, E> {
     fn num_vars(&self) -> usize {
-        self.num_vars
+        self.r.len()
     }
 
     fn num_polys(&self) -> usize {
@@ -165,9 +163,9 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalImpr<F, E> {
 
 forward_impl_sumcheck_function!(impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunction<F, E> for EvalImprProver<'a, F, E>);
 
-impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalImprProver<'a, F, E> {
+impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalImprProver<'_, F, E> {
     fn compute_sum(&self, round: usize) -> E {
-        if self.f.num_vars == 0 {
+        if self.f.num_vars() == 0 {
             return self.poly.to_ext()[0];
         }
 
@@ -211,7 +209,7 @@ impl<'a, F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalIm
 #[cfg(test)]
 mod test {
     use crate::{
-        function::eval_imp::{EvalImpr, EvalImprProver},
+        function::eval_impr::{EvalImpr, EvalImprProver},
         test::run_sumcheck,
     };
     use p3::{
@@ -225,7 +223,7 @@ mod test {
     fn eval_imp() {
         fn run<F: Field + FromUniformBytes, E: ExtensionField<F> + FromUniformBytes>() {
             run_sumcheck(|num_vars, rng| {
-                let f = EvalImpr::new(num_vars, &E::random_vec(num_vars, &mut *rng));
+                let f = EvalImpr::new(&E::random_vec(num_vars, &mut *rng));
                 let poly = MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng));
                 EvalImprProver::new(f, poly)
             });

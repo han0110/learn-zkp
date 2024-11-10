@@ -4,7 +4,7 @@ use p3::field::{ExtensionField, Field};
 
 pub mod batch;
 pub mod eval;
-pub mod eval_imp;
+pub mod eval_impr;
 pub mod quadratic;
 
 #[auto_impl::auto_impl(&, &mut, Box)]

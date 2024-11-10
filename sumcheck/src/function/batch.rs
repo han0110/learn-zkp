@@ -205,7 +205,7 @@ mod test {
                 let fs = (0..3)
                     .map(|idx| {
                         let num_vars = num_vars.saturating_sub(idx);
-                        let f = Eval::new(num_vars, &E::random_vec(num_vars, &mut *rng));
+                        let f = Eval::new(&E::random_vec(num_vars, &mut *rng));
                         let poly = MultiPoly::base(F::random_vec(1 << num_vars, &mut *rng));
                         EvalProver::new(f, poly)
                     })
