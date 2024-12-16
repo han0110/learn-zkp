@@ -1,5 +1,5 @@
 use crate::{
-    field::{AbstractExtensionField, ExtensionField, Field, FromUniformBytes},
+    field::{ExtensionField, Field, FieldExtensionAlgebra, FromUniformBytes},
     keccak::Keccak256Hash,
     symmetric::CryptographicHasher,
 };
@@ -9,7 +9,7 @@ use serde::Serialize;
 pub use p3_challenger::*;
 
 pub trait FieldChallengerExt<F: Field>: FieldChallenger<F> {
-    fn observe_ext_slice<EF: AbstractExtensionField<F>>(&mut self, exts: &[EF]) {
+    fn observe_ext_slice<EF: FieldExtensionAlgebra<F>>(&mut self, exts: &[EF]) {
         exts.iter()
             .for_each(|ext| self.observe_slice(ext.as_base_slice()));
     }

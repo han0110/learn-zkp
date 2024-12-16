@@ -1,6 +1,6 @@
 use crate::{
     field::{
-        AbstractExtensionField, AbstractField, ExtPackedValue, ExtensionField, Field, FieldSlice,
+        ExtPackedValue, ExtensionField, Field, FieldAlgebra, FieldExtensionAlgebra, FieldSlice,
         PackedValue,
     },
     matrix::{
@@ -211,14 +211,14 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
     }
 }
 
-fn fix_last_var<F: AbstractField + Copy>(evals: &mut Vec<F>, x_i: F) {
+fn fix_last_var<F: FieldAlgebra + Copy>(evals: &mut Vec<F>, x_i: F) {
     let mid = evals.len() / 2;
     let (lo, hi) = evals.split_at_mut(mid);
     izip!(lo, hi).for_each(|(lo, hi)| *lo += x_i * (*hi - *lo));
     evals.truncate(mid);
 }
 
-fn fix_last_var_from_base<F: AbstractField + Copy, E: AbstractExtensionField<F> + Copy>(
+fn fix_last_var_from_base<F: FieldAlgebra + Copy, E: FieldExtensionAlgebra<F> + Copy>(
     evals: &[F],
     x_i: E,
 ) -> Vec<E> {
@@ -228,7 +228,7 @@ fn fix_last_var_from_base<F: AbstractField + Copy, E: AbstractExtensionField<F> 
         .collect()
 }
 
-pub fn evaluate<F: AbstractField + Copy>(evals: &[F], x: &[F]) -> F {
+pub fn evaluate<F: FieldAlgebra + Copy>(evals: &[F], x: &[F]) -> F {
     debug_assert_eq!(evals.len(), 1 << x.len());
     match x {
         [] => evals[0],
@@ -240,7 +240,7 @@ pub fn evaluate<F: AbstractField + Copy>(evals: &[F], x: &[F]) -> F {
     }
 }
 
-fn eq_expand<F: AbstractField>(evals: &mut [F], x_i: F, i: usize) {
+fn eq_expand<F: FieldAlgebra>(evals: &mut [F], x_i: F, i: usize) {
     let (lo, hi) = evals[..1 << (i + 1)].split_at_mut(1 << i);
     izip!(lo, hi).for_each(|(lo, hi)| {
         *hi = lo.clone() * x_i.clone();

@@ -26,7 +26,7 @@ pub fn random_linear_combine<F: Field>(
 }
 
 #[inline]
-pub fn dit_butterfly<F: AbstractField + Copy, P: PackedField<Scalar = F> + Copy>(
+pub fn dit_butterfly<F: FieldAlgebra + Copy, P: PackedField<Scalar = F> + Copy>(
     a: &mut P,
     b: &mut P,
     t: &F,

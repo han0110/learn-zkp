@@ -1,4 +1,4 @@
-use crate::field::{extension::Complex, AbstractField, PackedValue, PrimeField32, PrimeField64};
+use crate::field::{extension::Complex, FieldAlgebra, PackedValue, PrimeField32, PrimeField64};
 use core::{array::from_fn, iter::repeat_with};
 use rand::RngCore;
 
@@ -62,7 +62,7 @@ macro_rules! impl_from_uniform_bytes_for_binomial_extension {
             type Bytes = [u8; <$base as FromUniformBytes>::Bytes::WIDTH * $degree];
 
             fn try_from_uniform_bytes(bytes: Self::Bytes) -> Option<Self> {
-                Some(p3_field::AbstractExtensionField::from_base_slice(
+                Some(p3_field::FieldExtensionAlgebra::from_base_slice(
                     &array_try_from_uniform_bytes::<
                         $base,
                         { <$base as FromUniformBytes>::Bytes::WIDTH },

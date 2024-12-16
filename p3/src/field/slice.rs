@@ -1,5 +1,5 @@
 use crate::field::{dit_butterfly, Field, PackedValue};
-use util::{izip, Itertools};
+use util::izip;
 
 macro_rules! pack_for_each {
     (@ &mut $buf:ident $(, $($(&$mut:ident)? $tail:ident),*)?) => {
@@ -12,7 +12,7 @@ macro_rules! pack_for_each {
     };
     (|$($(&$mut:ident)? $buf:ident),*| $f:expr) => {
         #[cfg(debug_assertions)]
-        assert!([$(&*$buf),*].iter().tuple_windows().all(|(a, b)| a.len() == b.len()));
+        assert!(util::Itertools::tuple_windows([$(&*$buf),*].iter()).all(|(a, b)| a.len() == b.len()));
 
         pack_for_each!(@ $($(&$mut)? $buf),*);
         izip!($($buf.0,)*).for_each(|($($buf,)*)| $f);

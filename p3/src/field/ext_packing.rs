@@ -1,8 +1,8 @@
-use crate::field::{AbstractExtensionField, ExtensionField, Field, PackedValue};
+use crate::field::{ExtensionField, Field, FieldExtensionAlgebra, PackedValue};
 use util::izip;
 
 pub trait ExtPackedValue<F: Field, E: ExtensionField<F, ExtensionPacking = Self>>:
-    AbstractExtensionField<F::Packing>
+    FieldExtensionAlgebra<F::Packing>
 {
     fn ext_sum(&self) -> E {
         self.ext_unpack().into_iter().sum()
@@ -56,7 +56,7 @@ pub trait ExtPackedValue<F: Field, E: ExtensionField<F, ExtensionPacking = Self>
 impl<
         F: Field,
         E: ExtensionField<F, ExtensionPacking = T>,
-        T: AbstractExtensionField<F::Packing>,
+        T: FieldExtensionAlgebra<F::Packing>,
     > ExtPackedValue<F, E> for T
 {
 }
