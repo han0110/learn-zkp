@@ -68,9 +68,9 @@ pub mod test {
     {
         let mut rng = StdRng::from_entropy();
         for ((num_vars, num_polys), num_points) in
-            // TODO: Support multi-poly and multi-point
+            // TODO: Support multi-point
             // (0..10).cartesian_product(1..10).cartesian_product(1..10)
-            (0..10).cartesian_product(1..2).cartesian_product(1..2)
+            (0..10).cartesian_product(1..10).cartesian_product(1..2)
         {
             let (config, polys) = f(num_vars, num_polys, &mut rng);
 

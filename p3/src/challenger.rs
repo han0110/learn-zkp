@@ -13,6 +13,10 @@ pub trait FieldChallengerExt<F: Field>: FieldChallenger<F> {
         exts.iter()
             .for_each(|ext| self.observe_slice(ext.as_base_slice()));
     }
+
+    fn sample_ext_vec<EF: FieldExtensionAlgebra<F>>(&mut self, n: usize) -> Vec<EF> {
+        (0..n).map(|_| self.sample_ext_element()).collect()
+    }
 }
 
 impl<F: Field, T: FieldChallenger<F>> FieldChallengerExt<F> for T {}

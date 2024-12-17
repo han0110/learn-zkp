@@ -1,5 +1,4 @@
-use crate::poly::univariate::horner;
-use core::borrow::Borrow;
+use util::izip;
 
 mod array;
 mod ext_packing;
@@ -17,12 +16,8 @@ pub use p3_baby_bear::BabyBear;
 pub use p3_goldilocks::Goldilocks;
 pub use p3_mersenne_31::Mersenne31;
 
-/// Returns `values[0] + alpha * values[1] + alpha^2 * values[2] + ...`
-pub fn random_linear_combine<F: Field>(
-    values: impl IntoIterator<IntoIter: DoubleEndedIterator<Item: Borrow<F>>>,
-    alpha: F,
-) -> F {
-    horner(values, alpha)
+pub fn dot_product<F: FieldAlgebra, E: Clone + FieldExtensionAlgebra<F>>(a: &[E], b: &[F]) -> E {
+    izip!(a, b).map(|(a, b)| a.clone() * b.clone()).sum()
 }
 
 #[inline]

@@ -38,18 +38,6 @@ pub fn batch_interpolate<F: Field>(evals: RowMajorMatrixCow<F>) -> RowMajorMatri
     evals
 }
 
-pub fn transpose<F: Field>(evals: &RowMajorMatrix<F>) -> Vec<Vec<F>> {
-    (0..evals.width())
-        .map(|offset| {
-            evals.values[offset..]
-                .iter()
-                .step_by(evals.width())
-                .copied()
-                .collect()
-        })
-        .collect()
-}
-
 #[derive(Clone, Debug)]
 pub enum MultiPoly<'a, F: Field, E: ExtensionField<F>> {
     Base(Cow<'a, [F]>),
@@ -65,7 +53,12 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
     }
 
     pub fn ext(evals: impl Into<Cow<'a, [E]>>) -> Self {
-        Self::Ext(evals.into())
+        let evals = evals.into();
+        if E::D == 1 || F::Packing::WIDTH == 1 || evals.len() <= F::Packing::WIDTH {
+            Self::Ext(evals)
+        } else {
+            Self::ExtPacking(E::ExtensionPacking::ext_pack_slice(&evals).into())
+        }
     }
 
     pub fn ext_packing(evals: impl Into<Cow<'a, [E::ExtensionPacking]>>) -> Self {
@@ -190,7 +183,10 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
             (ExtPacking(a), ExtPacking(b)) => pp(a, b),
             (Base(b), Ext(a)) | (Ext(a), Base(b)) => eb(a, b),
             (Base(b), ExtPacking(a)) | (ExtPacking(a), Base(b)) => pb(a, F::Packing::pack_slice(b)),
-            (Ext(_), ExtPacking(_)) | (ExtPacking(_), Ext(_)) => unimplemented!(),
+            (Ext(e), ExtPacking(p)) | (ExtPacking(p), Ext(e)) => {
+                debug_assert!(p.len() <= 2);
+                ee(&E::ExtensionPacking::ext_unpack_slice(p), e)
+            }
         }
     }
 

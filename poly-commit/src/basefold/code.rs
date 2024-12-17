@@ -11,6 +11,8 @@ use rand::RngCore;
 use util::{izip, izip_par, rayon::prelude::*, Itertools};
 
 pub trait RandomFoldableCode<F: Field>: Debug + Send + Sync {
+    fn lambda(&self) -> usize;
+
     fn log2_c(&self) -> usize;
 
     fn c(&self) -> usize {
@@ -45,6 +47,12 @@ pub trait RandomFoldableCode<F: Field>: Debug + Send + Sync {
         self.n_0() << i
     }
 
+    /// Returns relative minimum distance.
+    fn relative_minimum_distance(&self) -> f64;
+
+    /// Returns number of queries needed to reach `lambda`-bits security.
+    fn num_queries(&self) -> usize;
+
     /// Returns diagonal matrices `(diag(T_0), . . . , diag(T_{d−1}))`.
     fn ts(&self) -> &[Vec<F>];
 
@@ -58,7 +66,7 @@ pub trait RandomFoldableCode<F: Field>: Debug + Send + Sync {
     fn batch_encode(&self, polys: RowMajorMatrixView<F>) -> RowMajorMatrix<F>;
 
     /// Returns `interpolate((diag(T_i)[j], w[j]), (diag(T_i')[j], w[j+n_i])))`
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: Vec<E>, r_i: E) -> Vec<E>;
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E);
 
     /// Returns `interpolate((diag(T_i)[j], l), (diag(T_i')[j], r)))`
     fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E;
@@ -66,9 +74,10 @@ pub trait RandomFoldableCode<F: Field>: Debug + Send + Sync {
 
 #[derive(Clone, Debug)]
 pub struct GenericRandomFoldableCode<F> {
+    lambda: usize,
     log2_c: usize,
-    d: usize,
     log2_k_0: usize,
+    d: usize,
     g_0: Vec<Vec<F>>,
     ts: Vec<Vec<F>>,
     weights: Vec<Vec<F>>,
@@ -76,6 +85,7 @@ pub struct GenericRandomFoldableCode<F> {
 
 impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
     pub fn reed_solomon_g_0_with_random_ts(
+        lambda: usize,
         log2_c: usize,
         log2_k_0: usize,
         d: usize,
@@ -96,9 +106,10 @@ impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
             })
             .collect();
         Self {
+            lambda,
             log2_c,
-            d,
             log2_k_0,
+            d,
             g_0,
             ts,
             weights,
@@ -107,6 +118,10 @@ impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
 }
 
 impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
+    fn lambda(&self) -> usize {
+        self.lambda
+    }
+
     fn log2_c(&self) -> usize {
         self.log2_c
     }
@@ -117,6 +132,27 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
 
     fn d(&self) -> usize {
         self.d
+    }
+
+    /// Formula in appendix C of 2023/1705.
+    fn relative_minimum_distance(&self) -> f64 {
+        let lambda = self.lambda() as f64;
+        let log2_f = F::order().bits() as f64;
+        return 1.0 - z_c(lambda, log2_f, self.c(), self.d(), self.log2_n_d());
+
+        fn z_c(lambda: f64, log2_f: f64, c: usize, i: usize, log2_n_i: usize) -> f64 {
+            if i == 0 {
+                return 1.0 / c as f64;
+            }
+            z_c(lambda, log2_f, c, i - 1, log2_n_i - 1) * (log2_f / (log2_f - 1.001))
+                + 1.0 / (log2_f - 1.001)
+                    * ((2.0 * (log2_n_i - 1) as f64 + lambda) / (1 << log2_n_i) as f64 + 0.6)
+        }
+    }
+
+    fn num_queries(&self) -> usize {
+        let delta = 1.0 - self.relative_minimum_distance() / 3.0;
+        (self.lambda() as f64 / -delta.log2()).ceil() as usize
     }
 
     fn ts(&self) -> &[Vec<F>] {
@@ -168,7 +204,7 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         w
     }
 
-    fn fold<E: ExtensionField<F>>(&self, i: usize, mut w: Vec<E>, r_i: E) -> Vec<E> {
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
         debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
 
         let mid = w.len() / 2;
@@ -176,7 +212,6 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         izip!(l, r, &self.ts()[i], &self.weights[i])
             .for_each(|(l, r, t, weight)| *l += (r_i - *t) * (*r - *l) * *weight);
         w.truncate(mid);
-        w
     }
 
     fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E {
