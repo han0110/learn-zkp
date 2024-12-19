@@ -7,7 +7,7 @@ use p3::{
     commit::{ExtensionMmcs, Mmcs},
     field::{dot_product, ExtensionField, Field},
     matrix::{dense::RowMajorMatrix, extension::FlatMatrixView, Dimensions, Matrix},
-    poly::multilinear::{eq_eval, evaluate, interpolate, MultiPoly},
+    poly::multilinear::{batch_interpolate, eq_eval, evaluate, interpolate, MultiPoly},
 };
 use sumcheck::{
     function::{
@@ -18,9 +18,7 @@ use sumcheck::{
 };
 use util::{cloned, izip, rayon::prelude::*, rev, Itertools};
 
-mod code;
-
-pub use code::GenericRandomFoldableCode;
+pub mod code;
 
 #[derive(Clone, Debug)]
 pub struct Basefold<F, E, R, M> {
@@ -110,7 +108,8 @@ where
     }
 
     fn commit(&self, data: Self::Data) -> Result<Self::CommitmentData, Self::Error> {
-        let codewords = self.code.batch_encode(data.as_view());
+        let polys = batch_interpolate(data.as_view().as_cow());
+        let codewords = self.code.batch_encode(polys);
         let (comm, codewords) = self.mmcs.commit_matrix(codewords);
         Ok(Self::CommitmentData {
             comm,
@@ -411,7 +410,10 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        basefold::{code::RandomFoldableCode, Basefold, BasefoldConfig, GenericRandomFoldableCode},
+        basefold::{
+            code::{GenericRandomFoldableCode, RandomFoldableCode, ReedSolomonCode},
+            Basefold, BasefoldConfig,
+        },
         test::run_multi_poly_commit_scheme,
     };
     use p3::{
@@ -422,6 +424,7 @@ mod test {
         merkle_tree::{keccak256_merkle_tree, Keccak256MerkleTreeMmcs},
     };
     use rand::rngs::StdRng;
+    use util::Itertools;
 
     type M<F> = Keccak256MerkleTreeMmcs<F>;
 
@@ -446,20 +449,27 @@ mod test {
 
     #[test]
     fn generic_random_foldable_code() {
-        fn run<F: Field + FromUniformBytes, E: ExtensionField<F> + FromUniformBytes>(
-            log2_c: usize,
-            log2_k_0: usize,
-        ) {
+        type F = BabyBear;
+        type E = BinomialExtensionField<BabyBear, 5>;
+        let lambda = 128;
+        for (log2_c, log2_k_0) in (0..3).cartesian_product(0..3) {
             run_basefold::<F, E, _>(|num_vars, rng| {
-                let d = num_vars.saturating_sub(log2_k_0);
                 let log2_k_0 = log2_k_0.min(num_vars);
+                let d = num_vars - log2_k_0;
                 GenericRandomFoldableCode::reed_solomon_g_0_with_random_ts(
-                    128, log2_c, log2_k_0, d, rng,
+                    lambda, log2_c, log2_k_0, d, rng,
                 )
             });
         }
+    }
 
-        run::<BabyBear, BabyBear>(1, 1);
-        run::<BabyBear, BinomialExtensionField<BabyBear, 5>>(1, 1);
+    #[test]
+    fn reed_solomon_code() {
+        type F = BabyBear;
+        type E = BinomialExtensionField<BabyBear, 5>;
+        let lambda = 128;
+        for log2_c in 0..3 {
+            run_basefold::<F, E, _>(|num_vars, _| ReedSolomonCode::new(lambda, log2_c, num_vars));
+        }
     }
 }

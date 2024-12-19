@@ -14,6 +14,7 @@ itertools = "0.13.0"
 p3-baby-bear = { git = "https://github.com/plonky3/plonky3" }
 p3-challenger = { git = "https://github.com/plonky3/plonky3" }
 p3-commit = { git = "https://github.com/plonky3/plonky3" }
+p3-dft = { git = "https://github.com/plonky3/plonky3" }
 p3-field = { git = "https://github.com/plonky3/plonky3" }
 p3-goldilocks = { git = "https://github.com/plonky3/plonky3" }
 p3-keccak = { git = "https://github.com/plonky3/plonky3" }
@@ -22,6 +23,7 @@ p3-maybe-rayon = { git = "https://github.com/plonky3/plonky3" }
 p3-merkle-tree = { git = "https://github.com/plonky3/plonky3" }
 p3-mersenne-31 = { git = "https://github.com/plonky3/plonky3" }
 p3-symmetric = { git = "https://github.com/plonky3/plonky3" }
+p3-util = { git = "https://github.com/plonky3/plonky3" }
 rand = "0.8.5"
 rayon = "1"
 serde = "1"
