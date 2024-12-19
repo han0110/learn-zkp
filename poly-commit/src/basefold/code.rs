@@ -3,6 +3,7 @@ use p3::{
     field::{ExtensionField, Field},
     matrix::dense::RowMajorMatrix,
 };
+use util::izip;
 
 mod generic;
 mod reed_solomon;
@@ -56,6 +57,9 @@ pub trait RandomFoldableCode<F: Field>: Debug {
     /// Returns diagonal matrices `(diag(T_0), . . . , diag(T_{d−1}))`.
     fn ts(&self) -> &[Vec<F>];
 
+    /// Returns weights for interpolation.
+    fn weights(&self) -> &[Vec<F>];
+
     /// Returns `w = m * G_0`.
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E>;
 
@@ -63,8 +67,20 @@ pub trait RandomFoldableCode<F: Field>: Debug {
     fn batch_encode(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F>;
 
     /// Returns `interpolate((diag(T_i)[j], w[j]), (diag(T_i')[j], w[j+n_i])))`
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E);
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
+        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
+
+        let mid = w.len() / 2;
+        let (l, r) = w.split_at_mut(mid);
+        izip!(l, r, &self.ts()[i], &self.weights()[i])
+            .for_each(|(l, r, t, weight)| *l += (r_i - *t) * (*r - *l) * *weight);
+        w.truncate(mid);
+    }
 
     /// Returns `interpolate((diag(T_i)[j], l), (diag(T_i')[j], r)))`
-    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E;
+    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E {
+        let t = self.ts()[i][j];
+        let weight = self.weights()[i][j];
+        l + (r_i - t) * (r - l) * weight
+    }
 }

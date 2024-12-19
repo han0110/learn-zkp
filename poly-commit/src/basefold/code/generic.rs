@@ -111,6 +111,10 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         &self.ts
     }
 
+    fn weights(&self) -> &[Vec<F>] {
+        &self.weights
+    }
+
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E> {
         self.g_0
             .iter()
@@ -141,21 +145,5 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         });
 
         w
-    }
-
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
-        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
-
-        let mid = w.len() / 2;
-        let (l, r) = w.split_at_mut(mid);
-        izip!(l, r, &self.ts()[i], &self.weights[i])
-            .for_each(|(l, r, t, weight)| *l += (r_i - *t) * (*r - *l) * *weight);
-        w.truncate(mid);
-    }
-
-    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E {
-        let t = self.ts()[i][j];
-        let weight = self.weights[i][j];
-        l + (r_i - t) * (r - l) * weight
     }
 }

@@ -5,7 +5,7 @@ use p3::{
     field::{batch_multiplicative_inverse, ExtensionField, FromUniformBytes, TwoAdicField},
     matrix::{bitrev::BitReversableMatrix, dense::RowMajorMatrix, Matrix},
 };
-use util::{izip, Itertools};
+use util::Itertools;
 
 #[derive(Clone, Debug)]
 pub struct ReedSolomonCode<F> {
@@ -75,6 +75,10 @@ impl<F: TwoAdicField + Ord> RandomFoldableCode<F> for ReedSolomonCode<F> {
         &self.ts
     }
 
+    fn weights(&self) -> &[Vec<F>] {
+        &self.weights
+    }
+
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E> {
         debug_assert_eq!(m.len(), 1);
 
@@ -85,21 +89,5 @@ impl<F: TwoAdicField + Ord> RandomFoldableCode<F> for ReedSolomonCode<F> {
         let mut m = m.bit_reverse_rows().to_row_major_matrix();
         m.pad_to_height(self.n_d(), F::ZERO);
         self.fft.dft_batch(m).to_row_major_matrix()
-    }
-
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
-        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
-
-        let mid = w.len() / 2;
-        let (l, r) = w.split_at_mut(mid);
-        izip!(l, r, &self.ts()[i], &self.weights[i])
-            .for_each(|(l, r, t, weight)| *l += (r_i - *t) * (*r - *l) * *weight);
-        w.truncate(mid);
-    }
-
-    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E {
-        let t = self.ts()[i][j];
-        let weight = self.weights[i][j];
-        l + (r_i - t) * (r - l) * weight
     }
 }
