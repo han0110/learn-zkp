@@ -5,6 +5,7 @@ version.workspace = true
 
 [dependencies]
 bincode = { workspace = true }
+num-bigint = { workspace = true, default-features = false }
 p3-baby-bear = { workspace = true }
 p3-challenger = { workspace = true }
 p3-commit = { workspace = true }
@@ -23,6 +24,7 @@ serde = { workspace = true }
 util = { path = "../util" }
 
 [dev-dependencies]
+p3-field-testing = { workspace = true }
 
 [features]
 default = []
