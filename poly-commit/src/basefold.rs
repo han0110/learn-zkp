@@ -417,9 +417,8 @@ mod test {
         test::run_multi_poly_commit_scheme,
     };
     use p3::{
-        field::{
-            extension::BinomialExtensionField, BabyBear, ExtensionField, Field, FromUniformBytes,
-        },
+        baby_bear::BabyBear,
+        field::{extension::BinomialExtensionField, ExtensionField, Field, FromUniformBytes},
         matrix::dense::RowMajorMatrix,
         merkle_tree::{keccak256_merkle_tree, Keccak256MerkleTreeMmcs},
     };

@@ -140,9 +140,8 @@ mod test {
     };
     use core::iter::repeat_with;
     use p3::{
-        field::{
-            extension::BinomialExtensionField, BabyBear, ExtensionField, Field, FromUniformBytes,
-        },
+        baby_bear::BabyBear,
+        field::{extension::BinomialExtensionField, ExtensionField, Field, FromUniformBytes},
         poly::multilinear::MultiPoly,
     };
     use rand::Rng;

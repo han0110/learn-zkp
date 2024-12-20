@@ -12,10 +12,6 @@ pub use slice::FieldSlice;
 
 pub use p3_field::*;
 
-pub use p3_baby_bear::BabyBear;
-pub use p3_goldilocks::Goldilocks;
-pub use p3_mersenne_31::Mersenne31;
-
 pub fn dot_product<F: FieldAlgebra, E: Clone + FieldExtensionAlgebra<F>>(a: &[E], b: &[F]) -> E {
     izip!(a, b).map(|(a, b)| a.clone() * b.clone()).sum()
 }

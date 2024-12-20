@@ -165,9 +165,8 @@ mod test {
         test::run_sumcheck,
     };
     use p3::{
-        field::{
-            extension::BinomialExtensionField, BabyBear, ExtensionField, Field, FromUniformBytes,
-        },
+        baby_bear::BabyBear,
+        field::{extension::BinomialExtensionField, ExtensionField, Field, FromUniformBytes},
         poly::multilinear::MultiPoly,
     };
     use util::Itertools;

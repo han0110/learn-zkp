@@ -326,9 +326,8 @@ macro_rules! op_multi_polys {
 #[cfg(test)]
 mod test {
     use crate::{
-        field::{
-            extension::BinomialExtensionField, BabyBear, ExtensionField, Field, FromUniformBytes,
-        },
+        baby_bear::BabyBear,
+        field::{extension::BinomialExtensionField, ExtensionField, Field, FromUniformBytes},
         poly::multilinear::MultiPoly,
     };
     use rand::{rngs::StdRng, SeedableRng};
