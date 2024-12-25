@@ -1,11 +1,13 @@
 use util::izip;
 
 mod array;
+mod binary;
 mod ext_packing;
 mod from_uniform_bytes;
 mod slice;
 
 pub use array::FieldArray;
+pub use binary::BinaryField;
 pub use ext_packing::ExtPackedValue;
 pub use from_uniform_bytes::FromUniformBytes;
 pub use slice::FieldSlice;

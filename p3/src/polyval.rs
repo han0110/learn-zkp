@@ -1,4 +1,4 @@
-use crate::field::FromUniformBytes;
+use crate::field::{BinaryField, FromUniformBytes};
 use core::{
     fmt::{self, Debug, Display},
     iter::{Product, Sum},
@@ -9,6 +9,7 @@ use p3_field::{Field, FieldAlgebra, Packable};
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use serde::{Deserialize, Serialize};
 
+pub mod ntt;
 mod portable;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -138,6 +139,12 @@ impl Field for Polyval {
     #[inline]
     fn order() -> BigUint {
         BigUint::from(1u64) << 128
+    }
+}
+
+impl BinaryField for Polyval {
+    fn basis(i: usize) -> Self {
+        Self::from_canonical_u128(1 << i)
     }
 }
 
