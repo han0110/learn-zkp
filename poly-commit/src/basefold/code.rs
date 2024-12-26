@@ -54,33 +54,30 @@ pub trait RandomFoldableCode<F: Field>: Debug {
     /// Returns number of queries needed to reach `lambda`-bits security.
     fn num_queries(&self) -> usize;
 
-    /// Returns diagonal matrices `(diag(T_0), . . . , diag(T_{d−1}))`.
-    fn ts(&self) -> &[Vec<F>];
-
-    /// Returns weights for interpolation.
-    fn weights(&self) -> &[Vec<F>];
-
     /// Returns `w = m * G_0`.
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E>;
 
-    /// Returns `w = m * G_d` where `m = interpolate(polys)`.
-    fn batch_encode(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F>;
+    /// Returns `w = m * G_d`.
+    fn encode_batch(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F>;
 
     /// Returns `interpolate((diag(T_i)[j], w[j]), (diag(T_i')[j], w[j+n_i])))`
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
-        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E);
 
-        let mid = w.len() / 2;
-        let (l, r) = w.split_at_mut(mid);
-        izip!(l, r, &self.ts()[i], &self.weights()[i])
-            .for_each(|(l, r, t, weight)| *l += (r_i - *t) * (*r - *l) * *weight);
-        w.truncate(mid);
-    }
+    /// Returns `interpolate((diag(T_i)[j], lo), (diag(T_i')[j], hi)))`
+    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, lo: E, hi: E, r_i: E) -> E;
+}
 
-    /// Returns `interpolate((diag(T_i)[j], l), (diag(T_i')[j], r)))`
-    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, l: E, r: E, r_i: E) -> E {
-        let t = self.ts()[i][j];
-        let weight = self.weights()[i][j];
-        l + (r_i - t) * (r - l) * weight
-    }
+fn fold<F: Field, E: ExtensionField<F>>(t_inv_halves: &[F], w: &mut Vec<E>, r_i: E) {
+    let mid = w.len() / 2;
+    let (a, b) = w.split_at_mut(mid);
+    izip!(t_inv_halves, a, b)
+        .for_each(|(t_inv_half, a, b)| *a = interpolate(*t_inv_half, *a, *b, r_i));
+    w.truncate(mid);
+}
+
+#[inline]
+fn interpolate<F: Field, E: ExtensionField<F>>(t_inv_half: F, a: E, b: E, r_i: E) -> E {
+    let c = (a + b).halve();
+    let d = (a - b) * t_inv_half;
+    c + (d - c) * r_i
 }

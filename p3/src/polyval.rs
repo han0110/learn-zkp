@@ -9,7 +9,6 @@ use p3_field::{Field, FieldAlgebra, Packable};
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use serde::{Deserialize, Serialize};
 
-pub mod ntt;
 mod portable;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

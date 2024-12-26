@@ -1,4 +1,4 @@
-use crate::basefold::code::RandomFoldableCode;
+use crate::basefold::code::{fold, interpolate, RandomFoldableCode};
 use core::fmt::Debug;
 use p3::{
     field::{batch_multiplicative_inverse, ExtensionField, Field, FieldSlice, FromUniformBytes},
@@ -18,7 +18,7 @@ pub struct GenericRandomFoldableCode<F> {
     d: usize,
     g_0: Vec<Vec<F>>,
     ts: Vec<Vec<F>>,
-    weights: Vec<Vec<F>>,
+    t_inv_halves: Vec<Vec<F>>,
 }
 
 impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
@@ -37,11 +37,9 @@ impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
         let ts = (0..d)
             .map(|i| F::random_vec(n_0 << i, &mut rng))
             .collect_vec();
-        let weights = ts
+        let t_inv_halves = ts
             .iter()
-            .map(|t_i| {
-                batch_multiplicative_inverse(&t_i.iter().map(|t_i_j| -t_i_j.double()).collect_vec())
-            })
+            .map(|t_i| batch_multiplicative_inverse(&t_i.iter().map(F::double).collect_vec()))
             .collect();
         Self {
             lambda,
@@ -50,7 +48,7 @@ impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
             d,
             g_0,
             ts,
-            weights,
+            t_inv_halves,
         }
     }
 }
@@ -107,14 +105,6 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         (self.lambda() as f64 / -delta.log2()).ceil() as usize
     }
 
-    fn ts(&self) -> &[Vec<F>] {
-        &self.ts
-    }
-
-    fn weights(&self) -> &[Vec<F>] {
-        &self.weights
-    }
-
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E> {
         self.g_0
             .iter()
@@ -122,7 +112,7 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
             .collect()
     }
 
-    fn batch_encode(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F> {
+    fn encode_batch(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F> {
         debug_assert_eq!(m.height(), self.k_d());
 
         let mut w = RowMajorMatrix::new(F::zero_vec(m.width() * self.n_d()), m.width());
@@ -139,11 +129,21 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
             let n_i = self.n_0() << i;
             w.par_row_chunks_mut(n_i).for_each(|mut w| {
                 let (mut l, mut r) = w.split_rows_mut(n_i >> 1);
-                izip!(l.rows_mut(), r.rows_mut(), &self.ts()[i - 1])
+                izip!(l.rows_mut(), r.rows_mut(), &self.ts[i - 1])
                     .for_each(|(mut l, r, t)| l.slice_dit_butterfly(r, t))
             })
         });
 
         w
+    }
+
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
+        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
+
+        fold(&self.t_inv_halves[i], w, r_i);
+    }
+
+    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, a: E, b: E, r_i: E) -> E {
+        interpolate(self.t_inv_halves[i][j], a, b, r_i)
     }
 }

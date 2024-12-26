@@ -1,8 +1,8 @@
-use crate::basefold::code::RandomFoldableCode;
+use crate::basefold::code::{fold, interpolate, RandomFoldableCode};
 use core::fmt::Debug;
 use p3::{
     dft::{Radix2DitParallel, TwoAdicSubgroupDft},
-    field::{batch_multiplicative_inverse, ExtensionField, FromUniformBytes, TwoAdicField},
+    field::{batch_multiplicative_inverse, ExtensionField, TwoAdicField},
     matrix::{bitrev::BitReversableMatrix, dense::RowMajorMatrix, Matrix},
 };
 use util::Itertools;
@@ -12,34 +12,27 @@ pub struct ReedSolomonCode<F> {
     lambda: usize,
     log2_c: usize,
     d: usize,
-    ts: Vec<Vec<F>>,
-    weights: Vec<Vec<F>>,
+    t_inv_halves: Vec<Vec<F>>,
     fft: Radix2DitParallel<F>,
 }
 
-impl<F: TwoAdicField + FromUniformBytes> ReedSolomonCode<F> {
+impl<F: TwoAdicField> ReedSolomonCode<F> {
     pub fn new(lambda: usize, log2_c: usize, d: usize) -> Self {
         let n_0 = 1 << log2_c;
-        let ts = (0..d)
+        let t_inv_halves = (0..d)
             .map(|i| {
-                F::two_adic_generator(log2_c + i + 1)
+                let t_i = F::two_adic_generator(log2_c + i + 1)
                     .powers()
                     .take(n_0 << i)
-                    .collect_vec()
-            })
-            .collect_vec();
-        let weights = ts
-            .iter()
-            .map(|t_i| {
-                batch_multiplicative_inverse(&t_i.iter().map(|t_i_j| -t_i_j.double()).collect_vec())
+                    .collect_vec();
+                batch_multiplicative_inverse(&t_i.iter().map(F::double).collect_vec())
             })
             .collect();
         Self {
             lambda,
             log2_c,
             d,
-            ts,
-            weights,
+            t_inv_halves,
             fft: Default::default(),
         }
     }
@@ -71,23 +64,25 @@ impl<F: TwoAdicField + Ord> RandomFoldableCode<F> for ReedSolomonCode<F> {
         (self.lambda() as f64 / -delta.log2()).ceil() as usize
     }
 
-    fn ts(&self) -> &[Vec<F>] {
-        &self.ts
-    }
-
-    fn weights(&self) -> &[Vec<F>] {
-        &self.weights
-    }
-
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E> {
         debug_assert_eq!(m.len(), 1);
 
         vec![m[0]; self.c()]
     }
 
-    fn batch_encode(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F> {
+    fn encode_batch(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F> {
         let mut m = m.bit_reverse_rows().to_row_major_matrix();
         m.pad_to_height(self.n_d(), F::ZERO);
         self.fft.dft_batch(m).to_row_major_matrix()
+    }
+
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
+        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
+
+        fold(&self.t_inv_halves[i], w, r_i);
+    }
+
+    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, a: E, b: E, r_i: E) -> E {
+        interpolate(self.t_inv_halves[i][j], a, b, r_i)
     }
 }

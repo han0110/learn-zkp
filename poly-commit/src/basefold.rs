@@ -7,7 +7,7 @@ use p3::{
     commit::{ExtensionMmcs, Mmcs},
     field::{dot_product, ExtensionField, Field},
     matrix::{dense::RowMajorMatrix, extension::FlatMatrixView, Dimensions, Matrix},
-    poly::multilinear::{batch_interpolate, eq_eval, evaluate, interpolate, MultiPoly},
+    poly::multilinear::{eq_eval, evaluate, MultiPoly},
 };
 use sumcheck::{
     function::{
@@ -108,8 +108,7 @@ where
     }
 
     fn commit(&self, data: Self::Data) -> Result<Self::CommitmentData, Self::Error> {
-        let polys = batch_interpolate(data.as_view().as_cow());
-        let codewords = self.code.batch_encode(polys);
+        let codewords = self.code.encode_batch(data.clone());
         let (comm, codewords) = self.mmcs.commit_matrix(codewords);
         Ok(Self::CommitmentData {
             comm,
@@ -194,7 +193,7 @@ where
 
         challenger.observe_ext_slice(&final_poly);
 
-        debug_assert_eq!(self.code.encode0(&interpolate(&final_poly)), pi);
+        debug_assert_eq!(self.code.encode0(&final_poly), pi);
 
         let opening_indices =
             repeat_with(|| challenger.sample_bits(self.code.n_d().ilog2() as usize))
@@ -274,7 +273,7 @@ where
             return Err(Self::Error::InvalidFinalPoly);
         }
 
-        let pi_0 = self.code.encode0(&interpolate(&proof.final_poly));
+        let pi_0 = self.code.encode0(&proof.final_poly);
 
         let opening_indices =
             repeat_with(|| challenger.sample_bits(self.code.n_d().ilog2() as usize))

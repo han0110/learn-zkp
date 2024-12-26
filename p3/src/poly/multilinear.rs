@@ -1,42 +1,11 @@
 use crate::{
     field::{
-        ExtPackedValue, ExtensionField, Field, FieldAlgebra, FieldExtensionAlgebra, FieldSlice,
-        PackedValue,
-    },
-    matrix::{
-        dense::{RowMajorMatrix, RowMajorMatrixCow},
-        Matrix,
+        ExtPackedValue, ExtensionField, Field, FieldAlgebra, FieldExtensionAlgebra, PackedValue,
     },
     op_multi_poly,
 };
 use std::borrow::Cow;
-use util::{enumerate, izip, rayon::prelude::*, Itertools};
-
-pub fn interpolate<'a, F: Field>(evals: impl Into<Cow<'a, [F]>>) -> Vec<F> {
-    let mut evals = evals.into().into_owned();
-    debug_assert!(evals.len().is_power_of_two());
-    for i in 0..evals.len().ilog2() {
-        let chunk_size = 1 << (i + 1);
-        evals.chunks_mut(chunk_size).for_each(|evals| {
-            let (lo, mut hi) = evals.split_at_mut(chunk_size >> 1);
-            hi.slice_sub_assign(lo);
-        })
-    }
-    evals
-}
-
-pub fn batch_interpolate<F: Field>(evals: RowMajorMatrixCow<F>) -> RowMajorMatrix<F> {
-    debug_assert!(evals.height().is_power_of_two());
-    let mut evals = evals.to_row_major_matrix();
-    for i in 0..evals.height().ilog2() {
-        let chunk_size = 1 << (i + 1);
-        evals.par_row_chunks_mut(chunk_size).for_each(|mut evals| {
-            let (lo, mut hi) = evals.split_rows_mut(chunk_size >> 1);
-            hi.values.slice_sub_assign(lo.values);
-        })
-    }
-    evals
-}
+use util::{enumerate, izip, Itertools};
 
 #[derive(Clone, Debug)]
 pub enum MultiPoly<'a, F: Field, E: ExtensionField<F>> {
