@@ -11,6 +11,14 @@ use serde::{Deserialize, Serialize};
 
 mod portable;
 
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+mod x86_64_avx2;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use x86_64_avx2::{from_canonical, invert_or_zero, montgomery_multiply, to_canonical};
+
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+use portable::{from_canonical, invert_or_zero, montgomery_multiply, to_canonical};
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Polyval {
@@ -24,13 +32,13 @@ impl Polyval {
     }
 
     #[inline]
-    pub const fn from_canonical_u128(value: u128) -> Self {
-        Self::new(portable::from_canonical(value))
+    pub fn from_canonical_u128(value: u128) -> Self {
+        Self::new(from_canonical(value))
     }
 
     #[inline]
-    pub const fn to_canonical_u128(&self) -> u128 {
-        portable::to_canonical(self.value)
+    pub fn to_canonical_u128(&self) -> u128 {
+        to_canonical(self.value)
     }
 }
 
@@ -66,44 +74,51 @@ impl FieldAlgebra for Polyval {
     type F = Self;
 
     const ZERO: Self = Self::new(0);
-    const ONE: Self = Self::from_canonical_u128(1);
-    const TWO: Self = Self::new(0);
-    const NEG_ONE: Self = Self::from_canonical_u128(1);
+    const ONE: Self = Self::new(portable::from_canonical(1));
+    const TWO: Self = Self::ZERO;
+    const NEG_ONE: Self = Self::ONE;
 
     #[inline]
     fn from_f(f: Self::F) -> Self {
         f
     }
 
+    #[inline]
     fn from_bool(b: bool) -> Self {
         Self::from_canonical_u128(b.into())
     }
 
+    #[inline]
     fn from_canonical_u8(n: u8) -> Self {
         Self::from_canonical_u128(n.into())
     }
 
+    #[inline]
     fn from_canonical_u16(n: u16) -> Self {
         Self::from_canonical_u128(n.into())
     }
 
+    #[inline]
     fn from_canonical_u32(n: u32) -> Self {
         Self::from_canonical_u128(n.into())
     }
 
-    #[inline(always)]
+    #[inline]
     fn from_canonical_u64(n: u64) -> Self {
         Self::from_canonical_u128(n.into())
     }
 
+    #[inline]
     fn from_canonical_usize(n: usize) -> Self {
         Self::from_canonical_u128(n as u128)
     }
 
+    #[inline]
     fn from_wrapped_u32(n: u32) -> Self {
         Self::from_canonical_u128(n.into())
     }
 
+    #[inline]
     fn from_wrapped_u64(n: u64) -> Self {
         Self::from_canonical_u128(n.into())
     }
@@ -126,7 +141,7 @@ impl Field for Polyval {
 
     fn try_inverse(&self) -> Option<Self> {
         (!self.is_zero()).then(|| {
-            let inv = portable::invert_or_zero(self.value);
+            let inv = invert_or_zero(self.value);
             Self::new(inv)
         })
     }
@@ -142,6 +157,7 @@ impl Field for Polyval {
 }
 
 impl BinaryField for Polyval {
+    #[inline]
     fn basis(i: usize) -> Self {
         Self::from_canonical_u128(1 << i)
     }
@@ -195,8 +211,7 @@ impl Mul for Polyval {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        let out = portable::montgomery_multiply(self.value, rhs.value);
-        Self::new(out)
+        Self::new(montgomery_multiply(self.value, rhs.value))
     }
 }
 

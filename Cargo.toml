@@ -30,3 +30,7 @@ p3-util = { git = "https://github.com/plonky3/plonky3" }
 rand = "0.8.5"
 rayon = "1"
 serde = "1"
+
+[profile.ci]
+inherits = "release"
+debug-assertions = true

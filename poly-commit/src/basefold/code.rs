@@ -71,7 +71,7 @@ pub trait RandomFoldableCode<F: Field>: Debug {
 
     /// Returns `(dit_butterfly^-1)(lo, hi, diag(T_i)[j]) ⊗ (1 - r_i, r_i)`
     fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
-        debug_assert_eq!(w.len(), 1 << (self.log2_c() + i + 1));
+        debug_assert_eq!(w.len(), 1 << (self.log2_c() + self.log2_k_0() + i + 1));
 
         let mid = w.len() / 2;
         let (lo, hi) = w.split_at_mut(mid);

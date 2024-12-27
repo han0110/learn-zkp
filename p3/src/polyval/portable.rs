@@ -3,6 +3,8 @@
 // Copyright (c) 2019-2023 RustCrypto Developers
 // Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
 
+#![allow(dead_code)]
+
 use core::ops::BitXor;
 
 #[inline]
@@ -22,6 +24,7 @@ pub const fn to_canonical(a: u128) -> u128 {
 /// polynomials with an R value of $X^128$.
 ///
 /// [1]: <https://datatracker.ietf.org/doc/html/rfc8452>
+#[inline]
 pub const fn montgomery_multiply(a: u128, b: u128) -> u128 {
     let h0 = a as u64;
     let h1 = (a >> 64) as u64;
@@ -128,13 +131,14 @@ pub fn invert_or_zero(value: u128) -> u128 {
     // selt_pow_2_pow_k1s_to_k0s contains z raised to the power whose binary representation is 2^k ones followed by 2^k zeros
     for k in 1..7 {
         // Fill in the zeros in the exponent of selt_pow_2_pow_k1s_to_k0s with ones
-        self_pow_2_pow_k1s = montgomery_multiply(self_pow_2_pow_k1s, selt_pow_2_pow_k1s_to_k0s);
+        self_pow_2_pow_k1s =
+            super::montgomery_multiply(self_pow_2_pow_k1s, selt_pow_2_pow_k1s_to_k0s);
 
         // selt_pow_2_pow_k1s_to_k0s = pow_2_2_n with 2^k zeros appended to the exponent
         selt_pow_2_pow_k1s_to_k0s = pow_2_2_n(self_pow_2_pow_k1s, k);
 
         // prepend 2^k ones to res
-        res = montgomery_multiply(res, selt_pow_2_pow_k1s_to_k0s);
+        res = super::montgomery_multiply(res, selt_pow_2_pow_k1s_to_k0s);
     }
 
     res
@@ -144,12 +148,12 @@ pub fn invert_or_zero(value: u128) -> u128 {
 fn pow_2_2_n(value: u128, n: usize) -> u128 {
     match n {
         // value^(2^(2^0)) = value
-        0 => montgomery_multiply(value, value),
+        0 => super::montgomery_multiply(value, value),
         1..=6 => {
             // Use the fact that for finite fields with characteristics 2
             // (x_0 + .. x_k)^(2^n) = x_0^(2^n) + ... + x_k^(2^n)
             // Split value into 4-bit nibbles and use precalculated values.
-            let bases_form = montgomery_multiply(value, 1);
+            let bases_form = super::montgomery_multiply(value, 1);
             (0..32)
                 .map(|nibble_index| {
                     let nibble_value = (bases_form >> (nibble_index * 4)) & 0x0F;
@@ -164,7 +168,7 @@ fn pow_2_2_n(value: u128, n: usize) -> u128 {
 
 /// Table where `value[i][k][j] = Polyval::from_canonical_u128(j << (4 * k)).exp_power_of_2(1 << (i + 1))`
 #[rustfmt::skip]
-const POLYVAL_NIBBLE_POW_2_N_TABLE: [[[u128; 16]; 32]; 6] = [
+static POLYVAL_NIBBLE_POW_2_N_TABLE: [[[u128; 16]; 32]; 6] = [
     [
         [0x0, 0xc2000000000000000000000000000001, 0x7600000000000000000000000000001b, 0xb400000000000000000000000000001a, 0x680000000000000000000000000001b4, 0xaa0000000000000000000000000001b5, 0x1e0000000000000000000000000001af, 0xdc0000000000000000000000000001ae, 0x4a000000000000000000000000001b45, 0x88000000000000000000000000001b44, 0x3c000000000000000000000000001b5e, 0xfe000000000000000000000000001b5f, 0x22000000000000000000000000001af1, 0xe0000000000000000000000000001af0, 0x54000000000000000000000000001aea, 0x96000000000000000000000000001aeb],
         [0x0, 0x2c00000000000000000000000001b456, 0x860000000000000000000000001b4563, 0xaa0000000000000000000000001af135, 0xba000000000000000000000001b4563d, 0x96000000000000000000000001b5e26b, 0x3c000000000000000000000001af135e, 0x10000000000000000000000001aea708, 0xfe00000000000000000000001b4563df, 0xd200000000000000000000001b44d789, 0x7800000000000000000000001b5e26bc, 0x5400000000000000000000001b5f92ea, 0x4400000000000000000000001af135e2, 0x6800000000000000000000001af081b4, 0xc200000000000000000000001aea7081, 0xee00000000000000000000001aebc4d7],
