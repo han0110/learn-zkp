@@ -4,12 +4,12 @@ pub mod merkle_tree;
 pub mod poly;
 pub mod polyval;
 pub mod symmetric;
+pub mod util;
 
 pub use p3_commit as commit;
 pub use p3_dft as dft;
 pub use p3_keccak as keccak;
 pub use p3_matrix as matrix;
-pub use p3_util as util;
 
 pub use p3_baby_bear as baby_bear;
 pub use p3_goldilocks as goldilocks;

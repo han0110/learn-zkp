@@ -1,4 +1,4 @@
-use crate::basefold::code::{fold, interpolate, RandomFoldableCode};
+use crate::basefold::code::RandomFoldableCode;
 use core::fmt::Debug;
 use p3::{
     field::{batch_multiplicative_inverse, ExtensionField, Field, FieldSlice, FromUniformBytes},
@@ -137,13 +137,7 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         w
     }
 
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
-        debug_assert_eq!((w.len() / self.n_0()).ilog2() as usize - 1, i);
-
-        fold(&self.t_inv_halves[i], w, r_i);
-    }
-
-    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, a: E, b: E, r_i: E) -> E {
-        interpolate(self.t_inv_halves[i][j], a, b, r_i)
+    fn t_inv_halves(&self, i: usize) -> &[F] {
+        &self.t_inv_halves[i]
     }
 }

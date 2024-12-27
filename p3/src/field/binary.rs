@@ -24,7 +24,7 @@ pub struct AddtiveNtt<F, D = Vec<F>> {
 
 impl<F: BinaryField> AddtiveNtt<F, Vec<F>> {
     pub fn new(log_n: usize) -> Self {
-        let twiddles = successors(
+        let twiddles_rev = successors(
             (log_n > 0).then(|| ((1..log_n).map(F::basis).collect_vec(), F::ONE)),
             |(basis, w_beta)| {
                 basis.split_first().map(|(basis_0, basis_rest)| {
@@ -44,6 +44,7 @@ impl<F: BinaryField> AddtiveNtt<F, Vec<F>> {
             twiddles
         })
         .collect_vec();
+        let twiddles = rev(twiddles_rev).collect();
 
         Self {
             twiddles,
@@ -53,8 +54,7 @@ impl<F: BinaryField> AddtiveNtt<F, Vec<F>> {
 
     pub fn coset(&self, coset_bits: usize, coset_idx: usize) -> AddtiveNtt<F, &[F]> {
         AddtiveNtt {
-            twiddles: self
-                .twiddles
+            twiddles: self.twiddles[coset_bits..]
                 .iter()
                 .map(|twiddles| {
                     twiddles
@@ -62,10 +62,22 @@ impl<F: BinaryField> AddtiveNtt<F, Vec<F>> {
                         .nth(coset_idx)
                         .unwrap()
                 })
-                .take(self.twiddles.len() - coset_bits)
                 .collect(),
             _marker: PhantomData,
         }
+    }
+
+    pub fn cosets(&self, coset_bits: usize) -> impl Iterator<Item = AddtiveNtt<F, &[F]>> {
+        (0..1 << coset_bits).map(move |coset_idx| self.coset(coset_bits, coset_idx))
+    }
+
+    pub fn par_cosets(
+        &self,
+        coset_bits: usize,
+    ) -> impl IndexedParallelIterator<Item = AddtiveNtt<F, &[F]>> {
+        (0..1 << coset_bits)
+            .into_par_iter()
+            .map(move |coset_idx| self.coset(coset_bits, coset_idx))
     }
 }
 
@@ -86,7 +98,7 @@ impl<F: BinaryField, D: Deref<Target = [F]>> AddtiveNtt<F, D> {
     pub fn forward_batch_inplace(&self, mut mat: RowMajorMatrixViewMut<F>) {
         debug_assert_eq!(mat.height(), 1 << self.twiddles.len());
         let log_n = mat.height().ilog2() as usize;
-        rev(zip(0..log_n, &self.twiddles)).for_each(|(i, twiddles)| {
+        zip(rev(0..log_n), &self.twiddles).for_each(|(i, twiddles)| {
             mat.par_row_chunks_exact_mut(2 << i)
                 .zip(twiddles.deref())
                 .for_each(layer::<_, false>)
@@ -105,7 +117,7 @@ impl<F: BinaryField, D: Deref<Target = [F]>> AddtiveNtt<F, D> {
     pub fn backward_batch_inplace(&self, mut mat: RowMajorMatrixViewMut<F>) {
         debug_assert_eq!(mat.height(), 1 << self.twiddles.len());
         let log_n = mat.height().ilog2() as usize;
-        zip(0..log_n, &self.twiddles).for_each(|(i, twiddles)| {
+        zip(0..log_n, rev(&self.twiddles)).for_each(|(i, twiddles)| {
             mat.par_row_chunks_exact_mut(2 << i)
                 .zip(twiddles.deref())
                 .for_each(layer::<_, true>)

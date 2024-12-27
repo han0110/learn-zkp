@@ -410,7 +410,10 @@ where
 mod test {
     use crate::{
         basefold::{
-            code::{GenericRandomFoldableCode, RandomFoldableCode, ReedSolomonCode},
+            code::{
+                BinaryReedSolomonCode, GenericRandomFoldableCode, RandomFoldableCode,
+                ReedSolomonCode,
+            },
             Basefold, BasefoldConfig,
         },
         test::run_multi_poly_commit_scheme,
@@ -420,6 +423,7 @@ mod test {
         field::{extension::BinomialExtensionField, ExtensionField, Field, FromUniformBytes},
         matrix::dense::RowMajorMatrix,
         merkle_tree::{keccak256_merkle_tree, Keccak256MerkleTreeMmcs},
+        polyval::Polyval,
     };
     use rand::rngs::StdRng;
     use util::Itertools;
@@ -468,6 +472,18 @@ mod test {
         let lambda = 128;
         for log2_c in 0..3 {
             run_basefold::<F, E, _>(|num_vars, _| ReedSolomonCode::new(lambda, log2_c, num_vars));
+        }
+    }
+
+    #[test]
+    fn binary_reed_solomon_code() {
+        type F = Polyval;
+        type E = Polyval;
+        let lambda = 128;
+        for log2_c in 0..3 {
+            run_basefold::<F, E, _>(|num_vars, _| {
+                BinaryReedSolomonCode::new(lambda, log2_c, num_vars)
+            });
         }
     }
 }

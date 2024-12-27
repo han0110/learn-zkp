@@ -5,9 +5,11 @@ use p3::{
 };
 use util::izip;
 
+mod binary_reed_solomon;
 mod generic;
 mod reed_solomon;
 
+pub use binary_reed_solomon::BinaryReedSolomonCode;
 pub use generic::GenericRandomFoldableCode;
 pub use reed_solomon::ReedSolomonCode;
 
@@ -60,24 +62,33 @@ pub trait RandomFoldableCode<F: Field>: Debug {
     /// Returns `w = m * G_d`.
     fn encode_batch(&self, m: RowMajorMatrix<F>) -> RowMajorMatrix<F>;
 
-    /// Returns `interpolate((diag(T_i)[j], w[j]), (diag(T_i')[j], w[j+n_i])))`
-    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E);
+    fn encode(&self, data: Vec<F>) -> Vec<F> {
+        self.encode_batch(RowMajorMatrix::new_col(data)).values
+    }
 
-    /// Returns `interpolate((diag(T_i)[j], lo), (diag(T_i')[j], hi)))`
-    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, lo: E, hi: E, r_i: E) -> E;
+    /// Returns `(2*T_i)^-1`.
+    fn t_inv_halves(&self, i: usize) -> &[F];
+
+    /// Returns `(dit_butterfly^-1)(lo, hi, diag(T_i)[j]) ⊗ (1 - r_i, r_i)`
+    fn fold<E: ExtensionField<F>>(&self, i: usize, w: &mut Vec<E>, r_i: E) {
+        debug_assert_eq!(w.len(), 1 << (self.log2_c() + i + 1));
+
+        let mid = w.len() / 2;
+        let (lo, hi) = w.split_at_mut(mid);
+        izip!(self.t_inv_halves(i), lo, hi)
+            .for_each(|(t_inv_half, lo, hi)| *lo = interpolate(*t_inv_half, *lo, *hi, r_i));
+        w.truncate(mid);
+    }
+
+    /// Returns `(dit_butterfly^-1)(lo, hi, diag(T_i)[j]) ⊗ (1 - r_i, r_i)`
+    fn interpolate<E: ExtensionField<F>>(&self, i: usize, j: usize, lo: E, hi: E, r_i: E) -> E {
+        interpolate(self.t_inv_halves(i)[j], lo, hi, r_i)
+    }
 }
 
-fn fold<F: Field, E: ExtensionField<F>>(t_inv_halves: &[F], w: &mut Vec<E>, r_i: E) {
-    let mid = w.len() / 2;
-    let (a, b) = w.split_at_mut(mid);
-    izip!(t_inv_halves, a, b)
-        .for_each(|(t_inv_half, a, b)| *a = interpolate(*t_inv_half, *a, *b, r_i));
-    w.truncate(mid);
-}
-
+/// Returns `(dit_butterfly^-1)(lo, hi, t) ⊗ (1 - r_i, r_i)`
 #[inline]
-fn interpolate<F: Field, E: ExtensionField<F>>(t_inv_half: F, a: E, b: E, r_i: E) -> E {
-    let c = (a + b).halve();
-    let d = (a - b) * t_inv_half;
-    c + (d - c) * r_i
+fn interpolate<F: Field, E: ExtensionField<F>>(t_inv_half: F, lo: E, hi: E, r_i: E) -> E {
+    let (lo, hi) = ((lo + hi).halve(), (lo - hi) * t_inv_half);
+    lo + (hi - lo) * r_i
 }
