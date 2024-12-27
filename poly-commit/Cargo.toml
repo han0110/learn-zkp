@@ -11,6 +11,7 @@ sumcheck = { path = "../sumcheck" }
 util = { path = "../util" }
 
 [dev-dependencies]
+criterion = { workspace = true }
 
 [features]
 default = []
@@ -20,3 +21,7 @@ missing_debug_implementations = "forbid"
 
 [lints.rustdoc]
 broken_intra_doc_links = "forbid"
+
+[[bench]]
+name = "bench"
+harness = false

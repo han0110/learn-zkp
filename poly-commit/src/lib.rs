@@ -1,5 +1,8 @@
 use core::fmt::Debug;
-use p3::{challenger::CanObserve, field::Field};
+use p3::{
+    challenger::{CanObserve, FieldChallenger},
+    field::{ExtensionField, Field},
+};
 
 pub mod basefold;
 
@@ -13,7 +16,7 @@ pub struct PolyEvals<E, P> {
     pub point: P,
 }
 
-pub trait PolyCommitScheme<E: Field, C: CanObserve<Self::Commitment>>: Sized + Debug {
+pub trait PolyCommitScheme<F: Field, E: ExtensionField<F>>: Sized + Debug {
     type Config: Debug;
     type Data: Debug;
     type Commitment: Clone + Debug;
@@ -32,9 +35,9 @@ pub trait PolyCommitScheme<E: Field, C: CanObserve<Self::Commitment>>: Sized + D
 
     fn open(
         &self,
-        comm_data: Self::CommitmentData,
+        comm_data: &Self::CommitmentData,
         evals: &[PolyEvals<E, Self::Point>],
-        challenger: C,
+        challenger: impl FieldChallenger<F> + CanObserve<Self::Commitment>,
     ) -> Result<Self::Proof, Self::Error>;
 
     fn verify(
@@ -42,7 +45,7 @@ pub trait PolyCommitScheme<E: Field, C: CanObserve<Self::Commitment>>: Sized + D
         comm: Self::Commitment,
         evals: &[PolyEvals<E, Self::Point>],
         proof: &Self::Proof,
-        challenger: C,
+        challenger: impl FieldChallenger<F> + CanObserve<Self::Commitment>,
     ) -> Result<(), Self::Error>;
 }
 
@@ -57,13 +60,12 @@ pub mod test {
     use rand::{rngs::StdRng, SeedableRng};
     use util::Itertools;
 
-    pub fn run_multi_poly_commit_scheme<
-        F: Field + FromUniformBytes,
-        E: ExtensionField<F> + FromUniformBytes,
-        P: PolyCommitScheme<E, GenericChallenger<F, Keccak256Hash>, Point = MultiPolyEvalPoint<E>>,
-    >(
+    pub fn run_multi_poly_commit_scheme<F, E, P>(
         f: impl Fn(usize, usize, &mut StdRng) -> (P::Config, P::Data),
     ) where
+        F: Field + FromUniformBytes,
+        E: ExtensionField<F> + FromUniformBytes,
+        P: PolyCommitScheme<F, E, Point = MultiPolyEvalPoint<E>>,
         GenericChallenger<F, Keccak256Hash>: CanObserve<P::Commitment>,
     {
         let mut rng = StdRng::from_entropy();
@@ -94,7 +96,7 @@ pub mod test {
                 .iter()
                 .for_each(|evals| challenger.observe_ext_slice(&evals.values));
 
-            let proof = pcs.open(comm_data, &evals, challenger.clone()).unwrap();
+            let proof = pcs.open(&comm_data, &evals, challenger.clone()).unwrap();
 
             pcs.verify(comm, &evals, &proof, challenger.clone())
                 .unwrap();

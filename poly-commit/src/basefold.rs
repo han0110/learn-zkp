@@ -33,7 +33,7 @@ pub struct BasefoldConfig<R, M> {
     pub mmcs: M,
 }
 
-#[derive(Debug, derive_more::AsRef)]
+#[derive(Clone, Debug, derive_more::AsRef)]
 pub struct BasefoldCommitmentData<F, M>
 where
     F: Field,
@@ -81,13 +81,12 @@ pub enum BasefoldError<F: Field, M: Mmcs<F>> {
     Mmcs(M::Error),
 }
 
-impl<F, E, R, M, C> PolyCommitScheme<E, C> for Basefold<F, E, R, M>
+impl<F, E, R, M> PolyCommitScheme<F, E> for Basefold<F, E, R, M>
 where
     F: Field,
     E: ExtensionField<F>,
     R: RandomFoldableCode<F>,
     M: Mmcs<F, Commitment: Debug, ProverData<RowMajorMatrix<F>>: Debug, Proof: Debug> + Debug,
-    C: FieldChallenger<F> + CanObserve<M::Commitment>,
 {
     type Config = BasefoldConfig<R, M>;
     // TODO: Support multi-matrix with different dimension.
@@ -130,9 +129,9 @@ where
 
     fn open(
         &self,
-        comm_data: Self::CommitmentData,
+        comm_data: &Self::CommitmentData,
         evals: &[PolyEvals<E, Self::Point>],
-        mut challenger: C,
+        mut challenger: impl FieldChallenger<F> + CanObserve<Self::Commitment>,
     ) -> Result<Self::Proof, Self::Error> {
         if evals.is_empty() {
             return Ok(Default::default());
@@ -234,7 +233,7 @@ where
         comm: Self::Commitment,
         evals: &[PolyEvals<E, Self::Point>],
         proof: &Self::Proof,
-        mut challenger: C,
+        mut challenger: impl FieldChallenger<F> + CanObserve<Self::Commitment>,
     ) -> Result<(), Self::Error> {
         if evals.is_empty() {
             return Ok(());

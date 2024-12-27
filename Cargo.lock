@@ -679,6 +679,7 @@ dependencies = [
 name = "poly-commit"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "derive_more",
  "p3",
  "rand",
