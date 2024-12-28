@@ -5,12 +5,8 @@ use crate::{
         Matrix,
     },
 };
-use core::{
-    iter::{successors, zip},
-    marker::PhantomData,
-    ops::Deref,
-};
-use util::{izip, rayon::prelude::*, rev, Itertools};
+use core::{iter::successors, marker::PhantomData, ops::Deref};
+use util::{par_zip, rayon::prelude::*, rev, zip, Itertools};
 
 pub trait BinaryField: Field {
     fn basis(i: usize) -> Self;
@@ -38,10 +34,10 @@ impl<F: BinaryField> AddtiveNtt<F, Vec<F>> {
         .map(|(w_beta_i, w_betas)| {
             let w_beta_i_inv = w_beta_i.inverse();
             let mut twiddles = vec![F::ZERO; 1 << w_betas.len()];
-            izip!(0..w_betas.len(), w_betas).for_each(|(j, w_beta)| {
+            zip!(0..w_betas.len(), w_betas).for_each(|(j, w_beta)| {
                 let w_beta = w_beta * w_beta_i_inv;
                 let (lo, hi) = twiddles[..2 << j].split_at_mut(1 << j);
-                izip!(hi, lo).for_each(|(hi, lo)| *hi = *lo + w_beta);
+                zip!(hi, lo).for_each(|(hi, lo)| *hi = *lo + w_beta);
             });
             twiddles
         })
@@ -100,9 +96,8 @@ impl<F: BinaryField, D: Deref<Target = [F]>> AddtiveNtt<F, D> {
     pub fn forward_batch_inplace(&self, mut mat: RowMajorMatrixViewMut<F>) {
         debug_assert_eq!(mat.height(), 1 << self.twiddles.len());
         let log_n = mat.height().ilog2() as usize;
-        zip(rev(0..log_n), &self.twiddles).for_each(|(i, twiddles)| {
-            mat.par_row_chunks_exact_mut(2 << i)
-                .zip(twiddles.deref())
+        zip!(rev(0..log_n), &self.twiddles).for_each(|(i, twiddles)| {
+            par_zip!(mat.par_row_chunks_exact_mut(2 << i), twiddles.deref())
                 .for_each(layer::<_, false>)
         })
     }
@@ -119,9 +114,8 @@ impl<F: BinaryField, D: Deref<Target = [F]>> AddtiveNtt<F, D> {
     pub fn backward_batch_inplace(&self, mut mat: RowMajorMatrixViewMut<F>) {
         debug_assert_eq!(mat.height(), 1 << self.twiddles.len());
         let log_n = mat.height().ilog2() as usize;
-        zip(0..log_n, rev(&self.twiddles)).for_each(|(i, twiddles)| {
-            mat.par_row_chunks_exact_mut(2 << i)
-                .zip(twiddles.deref())
+        zip!(0..log_n, rev(&self.twiddles)).for_each(|(i, twiddles)| {
+            par_zip!(mat.par_row_chunks_exact_mut(2 << i), twiddles.deref())
                 .for_each(layer::<_, true>)
         })
     }
@@ -129,17 +123,15 @@ impl<F: BinaryField, D: Deref<Target = [F]>> AddtiveNtt<F, D> {
 
 fn layer<F: Field, const INV: bool>((mut mat, twiddle): (RowMajorMatrixViewMut<F>, &F)) {
     let (mut lo, mut hi) = mat.split_rows_mut(mat.height() / 2);
-    lo.par_rows_mut()
-        .zip(hi.par_rows_mut())
-        .for_each(|(mut lo, mut hi)| {
-            if INV {
-                hi.slice_add_assign(lo);
-                lo.slice_add_scaled_assign(hi, *twiddle);
-            } else {
-                lo.slice_add_scaled_assign(hi, *twiddle);
-                hi.slice_add_assign(lo);
-            }
-        });
+    par_zip!(lo.par_rows_mut(), hi.par_rows_mut()).for_each(|(mut lo, mut hi)| {
+        if INV {
+            hi.slice_add_assign(lo);
+            lo.slice_add_scaled_assign(hi, *twiddle);
+        } else {
+            lo.slice_add_scaled_assign(hi, *twiddle);
+            hi.slice_add_assign(lo);
+        }
+    });
 }
 
 #[cfg(test)]

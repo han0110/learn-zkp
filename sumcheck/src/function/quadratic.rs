@@ -8,7 +8,7 @@ use p3::{
     op_multi_polys,
     poly::multilinear::MultiPoly,
 };
-use util::izip;
+use util::zip;
 
 #[derive(Clone, Debug)]
 pub struct Quadratic<F, E> {
@@ -88,7 +88,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for QuadraticP
             .map(|(scalar, f, g)| {
                 let (f, g) = (&self.polys[*f], &self.polys[*g]);
                 let sum = op_multi_polys!(
-                    |f, g| izip!(f, g).map(|(f, g)| *f * *g).sum(),
+                    |f, g| zip!(f, g).map(|(f, g)| *f * *g).sum(),
                     |sum| E::from(sum),
                     |sum: E::ExtensionPacking| sum.ext_sum(),
                 );

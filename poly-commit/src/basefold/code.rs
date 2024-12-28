@@ -3,7 +3,7 @@ use p3::{
     field::{ExtensionField, Field},
     matrix::dense::RowMajorMatrix,
 };
-use util::izip;
+use util::{par_zip, rayon::prelude::*};
 
 mod binary_reed_solomon;
 mod generic;
@@ -75,7 +75,7 @@ pub trait RandomFoldableCode<F: Field>: Debug {
 
         let mid = w.len() / 2;
         let (lo, hi) = w.split_at_mut(mid);
-        izip!(self.t_inv_halves(i), lo, hi)
+        par_zip!(self.t_inv_halves(i), lo, hi)
             .for_each(|(t_inv_half, lo, hi)| *lo = interpolate(*t_inv_half, *lo, *hi, r_i));
         w.truncate(mid);
     }

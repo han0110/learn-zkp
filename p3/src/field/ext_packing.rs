@@ -1,5 +1,5 @@
 use crate::field::{ExtensionField, Field, FieldExtensionAlgebra, PackedValue};
-use util::izip;
+use util::zip;
 
 pub trait ExtPackedValue<F: Field, E: ExtensionField<F, ExtensionPacking = Self>>:
     FieldExtensionAlgebra<F::Packing>
@@ -19,7 +19,7 @@ pub trait ExtPackedValue<F: Field, E: ExtensionField<F, ExtensionPacking = Self>
 
     fn ext_pack_slice_into(packed: &mut [Self], buf: &[E]) {
         debug_assert_eq!(buf.len() % F::Packing::WIDTH, 0);
-        izip!(packed, buf.chunks(F::Packing::WIDTH))
+        zip!(packed, buf.chunks(F::Packing::WIDTH))
             .for_each(|(packed, buf)| *packed = Self::ext_pack(buf));
     }
 
@@ -30,7 +30,7 @@ pub trait ExtPackedValue<F: Field, E: ExtensionField<F, ExtensionPacking = Self>
 
     fn ext_unpack_slice_into(buf: &mut [E], packed: &[Self]) {
         debug_assert_eq!(buf.len(), packed.len() * F::Packing::WIDTH);
-        izip!(packed, buf.chunks_mut(F::Packing::WIDTH)).for_each(|(packed, buf)| {
+        zip!(packed, buf.chunks_mut(F::Packing::WIDTH)).for_each(|(packed, buf)| {
             (0..F::Packing::WIDTH)
                 .for_each(|i| buf[i] = E::from_base_fn(|j| packed.as_base_slice()[j].as_slice()[i]))
         });

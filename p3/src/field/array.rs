@@ -4,7 +4,7 @@ use core::{
     iter::Sum,
     ops::{Add, AddAssign, Deref, DerefMut, Mul, MulAssign},
 };
-use util::izip;
+use util::zip;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(transparent)]
@@ -38,7 +38,7 @@ impl<F: FieldAlgebra, const N: usize> Default for FieldArray<F, N> {
 
 impl<F: FieldAlgebra, const N: usize> AddAssign for FieldArray<F, N> {
     fn add_assign(&mut self, rhs: Self) {
-        izip!(&mut self.0, rhs.0).for_each(|(acc, item)| *acc += item);
+        zip!(&mut self.0, rhs.0).for_each(|(acc, item)| *acc += item);
     }
 }
 

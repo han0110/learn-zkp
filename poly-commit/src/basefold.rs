@@ -16,7 +16,7 @@ use sumcheck::{
     },
     prove_sumcheck_round, verify_sumcheck_round, SumcheckProof, SumcheckSubclaim,
 };
-use util::{cloned, izip, rayon::prelude::*, rev, Itertools};
+use util::{cloned, rayon::prelude::*, rev, zip, Itertools};
 
 pub mod code;
 
@@ -142,7 +142,7 @@ where
 
         #[cfg(debug_assertions)]
         evals.iter().for_each(|eval| {
-            izip!(comm_data.data.transpose().row_slices(), &eval.values).for_each(
+            zip!(comm_data.data.transpose().row_slices(), &eval.values).for_each(
                 |(poly, value)| {
                     debug_assert_eq!(MultiPoly::base(poly).evaluate(&eval.point), *value);
                 },
@@ -206,7 +206,7 @@ where
                     let (mut values, proof) = self.mmcs.open_batch(*idx, &comm_data.codewords);
                     (values.pop().unwrap(), proof)
                 };
-                let opening_ext = izip!(rev(0..self.code.d()), &pi_comms)
+                let opening_ext = zip!(rev(0..self.code.d()), &pi_comms)
                     .map(|(i, (_, pi_i))| {
                         let sibling = ((idx / self.code.n_i(i)) & 1) ^ 1;
                         let idx = idx % self.code.n_i(i);
@@ -279,7 +279,7 @@ where
                 .take(self.code.num_queries())
                 .collect_vec();
 
-        izip!(&opening_indices, &proof.openings).try_for_each(|(idx, (opening, opening_ext))| {
+        zip!(&opening_indices, &proof.openings).try_for_each(|(idx, (opening, opening_ext))| {
             self.mmcs
                 .verify_batch(
                     comm,
@@ -293,7 +293,7 @@ where
                 )
                 .map_err(Self::Error::Mmcs)?;
             let leave = dot_product(&scalars[..num_polys], &opening.0);
-            let folded = izip!(rev(0..self.code.d()), rev(&r), &proof.pi_comms, opening_ext)
+            let folded = zip!(rev(0..self.code.d()), rev(&r), &proof.pi_comms, opening_ext)
                 .try_fold(leave, |folded, (i, r_i, comm, opening_ext)| {
                     let sibling = ((idx / self.code.n_i(i)) & 1) ^ 1;
                     let idx = idx % self.code.n_i(i);
@@ -345,7 +345,7 @@ where
         rev(0..self.code.d())
             .map(|i| {
                 let pi_comm = self.mmcs_ext.commit_matrix(RowMajorMatrix::new(
-                    izip!(&pi[..pi.len() / 2], &pi[pi.len() / 2..])
+                    zip!(&pi[..pi.len() / 2], &pi[pi.len() / 2..])
                         .flat_map(|(l, r)| [*l, *r])
                         .collect_vec(),
                     2,
@@ -373,7 +373,7 @@ where
         sumcheck_proof: &SumcheckProof<E>,
         mut challenger: impl FieldChallenger<F> + CanObserve<M::Commitment>,
     ) -> Vec<E> {
-        izip!(
+        zip!(
             rev(0..self.code.d()),
             pi_comms,
             &sumcheck_proof.compressed_round_polys

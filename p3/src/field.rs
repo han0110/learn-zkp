@@ -1,4 +1,4 @@
-use util::izip;
+use util::zip;
 
 mod array;
 mod binary;
@@ -15,7 +15,7 @@ pub use slice::FieldSlice;
 pub use p3_field::*;
 
 pub fn dot_product<F: FieldAlgebra, E: Clone + FieldExtensionAlgebra<F>>(a: &[E], b: &[F]) -> E {
-    izip!(a, b).map(|(a, b)| a.clone() * b.clone()).sum()
+    zip!(a, b).map(|(a, b)| a.clone() * b.clone()).sum()
 }
 
 #[inline]

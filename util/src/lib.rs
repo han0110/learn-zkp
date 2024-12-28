@@ -2,49 +2,49 @@ pub use itertools::{chain, cloned, enumerate, rev, Itertools};
 pub use rayon;
 
 #[macro_export]
-macro_rules! izip {
+macro_rules! zip {
     (@closure $p:pat => $tup:expr) => {
         |$p| $tup
     };
     (@closure $p:pat => ($($tup:tt)*) , $_iter:expr $(, $tail:expr)*) => {
-        $crate::izip!(@closure ($p, b) => ($($tup)*, b) $(, $tail)*)
+        $crate::zip!(@closure ($p, b) => ($($tup)*, b) $(, $tail)*)
     };
     ($first:expr $(,)*) => {
         core::iter::IntoIterator::into_iter($first)
     };
     ($first:expr, $second:expr $(,)*) => {{
         #[cfg(debug_assertions)]
-        { $crate::Itertools::zip_eq($crate::izip!($first), $second) }
+        { $crate::Itertools::zip_eq($crate::zip!($first), $second) }
         #[cfg(not(debug_assertions))]
-        { Iterator::zip($crate::izip!($first), $second) }
+        { Iterator::zip($crate::zip!($first), $second) }
     }};
     ($first:expr $(, $rest:expr)* $(,)*) => {{
-        let t = $crate::izip!($first);
-        $(let t = $crate::izip!(t, $rest);)*
-        t.map($crate::izip!(@closure a => (a) $(, $rest)*))
+        let t = $crate::zip!($first);
+        $(let t = $crate::zip!(t, $rest);)*
+        t.map($crate::zip!(@closure a => (a) $(, $rest)*))
     }};
 }
 
 #[macro_export]
-macro_rules! izip_par {
+macro_rules! par_zip {
     (@closure $p:pat => $tup:expr) => {
         |$p| $tup
     };
     (@closure $p:pat => ($($tup:tt)*) , $_iter:expr $(, $tail:expr)*) => {
-        $crate::izip_par!(@closure ($p, b) => ($($tup)*, b) $(, $tail)*)
+        $crate::par_zip!(@closure ($p, b) => ($($tup)*, b) $(, $tail)*)
     };
     ($first:expr $(,)*) => {
         $crate::rayon::prelude::IntoParallelIterator::into_par_iter($first)
     };
     ($first:expr, $second:expr $(,)*) => {{
         #[cfg(debug_assertions)]
-        { $crate::rayon::prelude::IndexedParallelIterator::zip_eq($crate::izip_par!($first), $second) }
+        { $crate::rayon::prelude::IndexedParallelIterator::zip_eq($crate::par_zip!($first), $second) }
         #[cfg(not(debug_assertions))]
-        { $crate::rayon::prelude::IndexedParallelIterator::zip($crate::izip_par!($first), $second) }
+        { $crate::rayon::prelude::IndexedParallelIterator::zip($crate::par_zip!($first), $second) }
     }};
     ($first:expr $(, $rest:expr)* $(,)*) => {{
-        let t = $crate::izip_par!($first);
-        $(let t = $crate::izip_par!(t, $rest);)*
-        t.map($crate::izip_par!(@closure a => (a) $(, $rest)*))
+        let t = $crate::par_zip!($first);
+        $(let t = $crate::par_zip!(t, $rest);)*
+        t.map($crate::par_zip!(@closure a => (a) $(, $rest)*))
     }};
 }

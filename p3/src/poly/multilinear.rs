@@ -5,7 +5,7 @@ use crate::{
     op_multi_poly,
 };
 use std::borrow::Cow;
-use util::{enumerate, izip, Itertools};
+use util::{enumerate, zip, Itertools};
 
 #[derive(Clone, Debug)]
 pub enum MultiPoly<'a, F: Field, E: ExtensionField<F>> {
@@ -179,7 +179,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
 fn fix_last_var<F: FieldAlgebra + Copy>(evals: &mut Vec<F>, x_i: F) {
     let mid = evals.len() / 2;
     let (lo, hi) = evals.split_at_mut(mid);
-    izip!(lo, hi).for_each(|(lo, hi)| *lo += x_i * (*hi - *lo));
+    zip!(lo, hi).for_each(|(lo, hi)| *lo += x_i * (*hi - *lo));
     evals.truncate(mid);
 }
 
@@ -188,7 +188,7 @@ fn fix_last_var_from_base<F: FieldAlgebra + Copy, E: FieldExtensionAlgebra<F> + 
     x_i: E,
 ) -> Vec<E> {
     let (lo, hi) = evals.split_at(evals.len() / 2);
-    izip!(lo, hi)
+    zip!(lo, hi)
         .map(|(lo, hi)| x_i * (*hi - *lo) + *lo)
         .collect()
 }
@@ -207,7 +207,7 @@ pub fn evaluate<F: FieldAlgebra + Copy>(evals: &[F], x: &[F]) -> F {
 
 fn eq_expand<F: FieldAlgebra>(evals: &mut [F], x_i: F, i: usize) {
     let (lo, hi) = evals[..1 << (i + 1)].split_at_mut(1 << i);
-    izip!(lo, hi).for_each(|(lo, hi)| {
+    zip!(lo, hi).for_each(|(lo, hi)| {
         *hi = lo.clone() * x_i.clone();
         *lo -= hi.clone();
     });
@@ -217,7 +217,7 @@ pub fn eq_eval<'a, E: Field>(
     x: impl IntoIterator<Item = &'a E>,
     y: impl IntoIterator<Item = &'a E>,
 ) -> E {
-    E::product(izip!(x, y).map(|(&x, &y)| (x * y).double() + E::ONE - x - y))
+    E::product(zip!(x, y).map(|(&x, &y)| (x * y).double() + E::ONE - x - y))
 }
 
 #[macro_export]
@@ -303,7 +303,7 @@ mod test {
 
     mod definition {
         use crate::field::{ExtensionField, Field};
-        use util::izip;
+        use util::zip;
 
         pub fn eq_evals<E: Field>(x: &[E], scalar: E) -> Vec<E> {
             (0..1 << x.len())
@@ -317,7 +317,7 @@ mod test {
         }
 
         pub fn evaluate<F: Field, E: ExtensionField<F>>(evals: &[F], x: &[E]) -> E {
-            izip!(eq_evals(x, E::ONE), evals)
+            zip!(eq_evals(x, E::ONE), evals)
                 .map(|(eq_eval_i, eval_i)| eq_eval_i * *eval_i)
                 .sum()
         }

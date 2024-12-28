@@ -2,9 +2,9 @@ use crate::basefold::code::RandomFoldableCode;
 use p3::{
     field::{AddtiveNtt, BinaryField, ExtensionField, Field},
     matrix::{bitrev::BitReversableMatrix, dense::RowMajorMatrix, Matrix},
-    util::bit_rev,
+    util::{bit_rev, par_bit_rev},
 };
-use util::{izip, rayon::prelude::*};
+use util::{par_zip, rayon::prelude::*};
 
 #[derive(Clone, Debug)]
 pub struct BinaryReedSolomonCode<F> {
@@ -26,6 +26,10 @@ impl<F: BinaryField> BinaryReedSolomonCode<F> {
 
     fn twiddle_bo(&self, i: usize) -> impl Iterator<Item = &F> {
         bit_rev(&self.ntt.twiddles()[self.log2_c() + i])
+    }
+
+    fn par_twiddle_bo(&self, i: usize) -> impl IndexedParallelIterator<Item = &F> {
+        par_bit_rev(&self.ntt.twiddles()[self.log2_c() + i])
     }
 }
 
@@ -68,10 +72,11 @@ impl<F: BinaryField> RandomFoldableCode<F> for BinaryReedSolomonCode<F> {
         m.pad_to_height(self.n_d(), F::ZERO);
         let len = m.width() * self.k_d();
         (1..self.c()).for_each(|i| m.values.copy_within(0..len, i * len));
-        self.ntt
-            .par_cosets(self.log2_c())
-            .zip(m.par_row_chunks_exact_mut(self.k_d()))
-            .for_each(|(coset_ntt, chunk)| coset_ntt.forward_batch_inplace(chunk));
+        par_zip!(
+            self.ntt.par_cosets(self.log2_c()),
+            m.par_row_chunks_exact_mut(self.k_d())
+        )
+        .for_each(|(coset_ntt, chunk)| coset_ntt.forward_batch_inplace(chunk));
 
         // Hacky way to turn even-odd to left-right folding
         m.bit_reverse_rows().to_row_major_matrix()
@@ -86,8 +91,8 @@ impl<F: BinaryField> RandomFoldableCode<F> for BinaryReedSolomonCode<F> {
 
         let mid = w.len() / 2;
         let (lo, hi) = w.split_at_mut(mid);
-        izip!(self.twiddle_bo(i), lo, hi)
-            .for_each(|(twiddle, lo, hi)| *lo = interpolate(*twiddle, *lo, *hi, r_i));
+        par_zip!(self.par_twiddle_bo(i), lo, hi)
+            .for_each(|(t_inv_half, lo, hi)| *lo = interpolate(*t_inv_half, *lo, *hi, r_i));
         w.truncate(mid);
     }
 
@@ -96,6 +101,7 @@ impl<F: BinaryField> RandomFoldableCode<F> for BinaryReedSolomonCode<F> {
     }
 }
 
+/// Returns `(addtive_ntt_butterfly^-1)(lo, hi, t) ⊗ (1 - r_i, r_i)`
 #[inline]
 fn interpolate<F: Field, E: ExtensionField<F>>(twiddle: F, mut lo: E, mut hi: E, r_i: E) -> E {
     hi += lo;

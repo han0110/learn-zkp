@@ -8,7 +8,7 @@ use p3::{
     op_multi_polys,
     poly::multilinear::{eq_eval, evaluate, MultiPoly},
 };
-use util::{izip, Itertools};
+use util::{zip, Itertools};
 
 #[derive(Clone, Debug)]
 pub struct EvalImpr<F, E> {
@@ -175,7 +175,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalImprPr
             * evaluate(
                 &[poly_lo, poly_hi].map(|poly| {
                     op_multi_polys!(
-                        |half_eq, poly| izip!(half_eq, poly).map(|(f, g)| *f * *g).sum(),
+                        |half_eq, poly| zip!(half_eq, poly).map(|(f, g)| *f * *g).sum(),
                         |sum| E::from(sum),
                         |sum: E::ExtensionPacking| sum.ext_sum(),
                     )
@@ -189,7 +189,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for EvalImprPr
         let (poly_lo, _) = &self.poly.split_at(self.poly.len() / 2);
         let coeff_0 = half_eq.correcting_factor(round)
             * op_multi_polys!(
-                |half_eq, poly_lo| izip!(half_eq, poly_lo).map(|(f, g)| *f * *g).sum(),
+                |half_eq, poly_lo| zip!(half_eq, poly_lo).map(|(f, g)| *f * *g).sum(),
                 |sum| E::from(sum),
                 |sum: E::ExtensionPacking| sum.ext_sum(),
             );

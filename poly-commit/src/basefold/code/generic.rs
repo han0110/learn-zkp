@@ -8,7 +8,7 @@ use p3::{
     },
 };
 use rand::RngCore;
-use util::{izip, izip_par, rayon::prelude::*, Itertools};
+use util::{par_zip, rayon::prelude::*, zip, Itertools};
 
 #[derive(Clone, Debug)]
 pub struct GenericRandomFoldableCode<F> {
@@ -59,9 +59,9 @@ impl<F: Field> GenericRandomFoldableCode<F> {
         debug_assert_eq!(w.height(), self.n_0());
 
         // i-th reed-solomon evaluation
-        izip!(&self.g_0, w.rows_mut()).for_each(|(g_0_i, mut w_i)| {
+        par_zip!(&self.g_0, w.par_rows_mut()).for_each(|(g_0_i, mut w_i)| {
             // j-th message coefficient
-            izip!(m.row_slices(), g_0_i)
+            zip!(m.row_slices(), g_0_i)
                 .for_each(|(m_j, g_0_i_j)| w_i.slice_add_scaled_assign(m_j, *g_0_i_j))
         });
     }
@@ -108,7 +108,7 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
     fn encode0<E: ExtensionField<F>>(&self, m: &[E]) -> Vec<E> {
         self.g_0
             .iter()
-            .map(|g_0_i| izip!(m, g_0_i).map(|(m_j, g_0_i_j)| *m_j * *g_0_i_j).sum())
+            .map(|g_0_i| zip!(m, g_0_i).map(|(m_j, g_0_i_j)| *m_j * *g_0_i_j).sum())
             .collect()
     }
 
@@ -118,7 +118,7 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         let mut w = RowMajorMatrix::new(F::zero_vec(m.width() * self.n_d()), m.width());
 
         // d = 0
-        izip_par!(
+        par_zip!(
             m.par_row_chunks(self.k_0()),
             w.par_row_chunks_mut(self.n_0())
         )
@@ -129,7 +129,7 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
             let n_i = self.n_0() << i;
             w.par_row_chunks_mut(n_i).for_each(|mut w| {
                 let (mut l, mut r) = w.split_rows_mut(n_i >> 1);
-                izip!(l.rows_mut(), r.rows_mut(), &self.ts[i - 1])
+                zip!(l.rows_mut(), r.rows_mut(), &self.ts[i - 1])
                     .for_each(|(mut l, r, t)| l.slice_dit_butterfly(r, t))
             })
         });

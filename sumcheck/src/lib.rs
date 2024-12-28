@@ -5,7 +5,7 @@ use p3::{
     field::{ExtensionField, Field},
     poly::univariate::horner,
 };
-use util::{izip, rev};
+use util::{zip, rev};
 
 pub mod function;
 
@@ -114,7 +114,7 @@ pub fn verify_sumcheck<F: Field, E: ExtensionField<F>>(
 
     challenger.observe_ext_element(*subclaim);
 
-    izip!(rev(0..f.num_vars()), &proof.compressed_round_polys).for_each(
+    zip!(rev(0..f.num_vars()), &proof.compressed_round_polys).for_each(
         |(round, compressed_round_poly)| {
             verify_sumcheck_round(
                 &f,
