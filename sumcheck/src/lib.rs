@@ -5,7 +5,7 @@ use p3::{
     field::{ExtensionField, Field},
     poly::univariate::horner,
 };
-use util::{zip, rev};
+use util::{rev, zip};
 
 pub mod function;
 

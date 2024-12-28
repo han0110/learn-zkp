@@ -8,7 +8,7 @@ use p3::{
     op_multi_polys,
     poly::multilinear::MultiPoly,
 };
-use util::zip;
+use util::{par_zip, rayon::prelude::*};
 
 #[derive(Clone, Debug)]
 pub struct Quadratic<F, E> {
@@ -88,7 +88,7 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for QuadraticP
             .map(|(scalar, f, g)| {
                 let (f, g) = (&self.polys[*f], &self.polys[*g]);
                 let sum = op_multi_polys!(
-                    |f, g| zip!(f, g).map(|(f, g)| *f * *g).sum(),
+                    |f, g| par_zip!(f, g).map(|(f, g)| *f * *g).sum(),
                     |sum| E::from(sum),
                     |sum: E::ExtensionPacking| sum.ext_sum(),
                 );
@@ -100,11 +100,12 @@ impl<F: Field, E: ExtensionField<F>> SumcheckFunctionProver<F, E> for QuadraticP
     fn compute_round_poly(&mut self, round: usize, subclaim: &SumcheckSubclaim<E>) -> Vec<E> {
         let FieldArray([coeff_0, coeff_2]) = self
             .pairs
-            .iter()
+            .par_iter()
             .map(|(scalar, f, g)| {
                 let (f, g) = (&self.polys[*f], &self.polys[*g]);
                 let sum = op_multi_polys!(
                     |f, g| (0..f.len() / 2)
+                        .into_par_iter()
                         .map(|b| {
                             let coeff_0 = f[b] * g[b];
                             let coeff_2 = (f[f.len() / 2 + b] - f[b]) * (g[f.len() / 2 + b] - g[b]);
