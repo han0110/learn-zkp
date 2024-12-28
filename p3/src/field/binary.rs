@@ -24,22 +24,24 @@ pub struct AddtiveNtt<F, D = Vec<F>> {
 
 impl<F: BinaryField> AddtiveNtt<F, Vec<F>> {
     pub fn new(log_n: usize) -> Self {
+        let mut betas = (0..log_n).map(F::basis);
         let twiddles_rev = successors(
-            (log_n > 0).then(|| ((1..log_n).map(F::basis).collect_vec(), F::ONE)),
-            |(basis, w_beta)| {
-                basis.split_first().map(|(basis_0, basis_rest)| {
-                    let f = |basis: &F| basis.square() + *basis * *w_beta;
-                    (basis_rest.iter().map(f).collect(), f(basis_0))
+            // (W_i(\beta_i), {W_i(\beta_{i+1}), \cdots, W_i(\beta_{log_n-1})})
+            betas.next().zip(Some(betas.collect_vec())),
+            |(w_beta_i, w_betas)| {
+                w_betas.split_first().map(|(w_beta_first, w_beta_rest)| {
+                    let q = |w_beta: &F| w_beta.square() + *w_beta * *w_beta_i;
+                    (q(w_beta_first), w_beta_rest.iter().map(q).collect())
                 })
             },
         )
-        .map(|(basis, w_beta)| {
-            let w_beta_inv = w_beta.inverse();
-            let mut twiddles = vec![F::ZERO; 1 << basis.len()];
-            izip!(0..basis.len(), basis).for_each(|(i, basis_i)| {
-                let basis_hat_i = basis_i * w_beta_inv;
-                let (lo, hi) = twiddles[..2 << i].split_at_mut(1 << i);
-                izip!(hi, lo).for_each(|(hi, lo)| *hi = *lo + basis_hat_i);
+        .map(|(w_beta_i, w_betas)| {
+            let w_beta_i_inv = w_beta_i.inverse();
+            let mut twiddles = vec![F::ZERO; 1 << w_betas.len()];
+            izip!(0..w_betas.len(), w_betas).for_each(|(j, w_beta)| {
+                let w_beta = w_beta * w_beta_i_inv;
+                let (lo, hi) = twiddles[..2 << j].split_at_mut(1 << j);
+                izip!(hi, lo).for_each(|(hi, lo)| *hi = *lo + w_beta);
             });
             twiddles
         })
@@ -170,8 +172,7 @@ mod test {
                 if s.len() == 1 {
                     return vec![F::ONE];
                 }
-                let s_next = s.iter().step_by(2).map(|s| q(i, *s)).collect();
-                recurse(i + 1, s_next, q(i, x))
+                recurse(i + 1, s.iter().map(|s| q(i, *s)).dedup().collect(), q(i, x))
                     .into_iter()
                     .flat_map(|v| [v, v * x])
                     .collect()
