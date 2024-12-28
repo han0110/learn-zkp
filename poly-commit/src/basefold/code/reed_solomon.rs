@@ -55,12 +55,11 @@ impl<F: TwoAdicField + Ord> RandomFoldableCode<F> for ReedSolomonCode<F> {
         self.d
     }
 
-    fn relative_minimum_distance(&self) -> f64 {
-        1.0 - (1.0 / self.c() as f64)
-    }
-
     fn num_queries(&self) -> usize {
-        let delta = 1.0 - self.relative_minimum_distance() / 3.0;
+        // Delta in unique decoding regime.
+        // TODO: Adapt delta in list-decoding regime.
+        let relative_minimum_distance = 1.0 - (1.0 / self.c() as f64);
+        let delta = 1.0 - relative_minimum_distance / 3.0;
         (self.lambda() as f64 / -delta.log2()).ceil() as usize
     }
 

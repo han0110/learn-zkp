@@ -50,12 +50,9 @@ impl<F: BinaryField> RandomFoldableCode<F> for BinaryReedSolomonCode<F> {
         self.d
     }
 
-    fn relative_minimum_distance(&self) -> f64 {
-        1.0 - (1.0 / self.c() as f64)
-    }
-
+    // Formula 8 of 2024/504.
     fn num_queries(&self) -> usize {
-        let delta = 1.0 - self.relative_minimum_distance() / 3.0;
+        let delta = (1.0 + 1.0 / self.c() as f64) / 2.0;
         (self.lambda() as f64 / -delta.log2()).ceil() as usize
     }
 

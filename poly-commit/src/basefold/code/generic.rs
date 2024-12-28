@@ -21,6 +21,24 @@ pub struct GenericRandomFoldableCode<F> {
     t_inv_halves: Vec<Vec<F>>,
 }
 
+impl<F: Field> GenericRandomFoldableCode<F> {
+    // Formula in appendix C of 2023/1705.
+    fn relative_minimum_distance(&self) -> f64 {
+        let lambda = self.lambda() as f64;
+        let log2_f = F::bits() as f64;
+        return 1.0 - z_c(lambda, log2_f, self.c(), self.d(), self.log2_n_d());
+
+        fn z_c(lambda: f64, log2_f: f64, c: usize, i: usize, log2_n_i: usize) -> f64 {
+            if i == 0 {
+                return 1.0 / c as f64;
+            }
+            z_c(lambda, log2_f, c, i - 1, log2_n_i - 1) * (log2_f / (log2_f - 1.001))
+                + 1.0 / (log2_f - 1.001)
+                    * ((2.0 * (log2_n_i - 1) as f64 + lambda) / (1 << log2_n_i) as f64 + 0.6)
+        }
+    }
+}
+
 impl<F: Field + FromUniformBytes> GenericRandomFoldableCode<F> {
     pub fn reed_solomon_g_0_with_random_ts(
         lambda: usize,
@@ -84,23 +102,8 @@ impl<F: Field> RandomFoldableCode<F> for GenericRandomFoldableCode<F> {
         self.d
     }
 
-    /// Formula in appendix C of 2023/1705.
-    fn relative_minimum_distance(&self) -> f64 {
-        let lambda = self.lambda() as f64;
-        let log2_f = F::bits() as f64;
-        return 1.0 - z_c(lambda, log2_f, self.c(), self.d(), self.log2_n_d());
-
-        fn z_c(lambda: f64, log2_f: f64, c: usize, i: usize, log2_n_i: usize) -> f64 {
-            if i == 0 {
-                return 1.0 / c as f64;
-            }
-            z_c(lambda, log2_f, c, i - 1, log2_n_i - 1) * (log2_f / (log2_f - 1.001))
-                + 1.0 / (log2_f - 1.001)
-                    * ((2.0 * (log2_n_i - 1) as f64 + lambda) / (1 << log2_n_i) as f64 + 0.6)
-        }
-    }
-
     fn num_queries(&self) -> usize {
+        // Delta in unique decoding regime.
         let delta = 1.0 - self.relative_minimum_distance() / 3.0;
         (self.lambda() as f64 / -delta.log2()).ceil() as usize
     }

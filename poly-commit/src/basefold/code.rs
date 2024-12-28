@@ -50,9 +50,6 @@ pub trait RandomFoldableCode<F: Field>: Debug {
         self.n_0() << i
     }
 
-    /// Returns relative minimum distance.
-    fn relative_minimum_distance(&self) -> f64;
-
     /// Returns number of queries needed to reach `lambda`-bits security.
     fn num_queries(&self) -> usize;
 
