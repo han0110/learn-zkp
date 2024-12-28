@@ -166,7 +166,7 @@ fn pow_2_2_n(value: u128, n: usize) -> u128 {
     }
 }
 
-/// Table where `value[i][k][j] = Polyval::from_canonical_u128(j << (4 * k)).exp_power_of_2(1 << (i + 1))`
+/// Table where `value[i][k][j] = Polyval::from_canonical_u128(j << (4 * k)).exp_power_of_2(2 << i)`
 #[rustfmt::skip]
 static POLYVAL_NIBBLE_POW_2_N_TABLE: [[[u128; 16]; 32]; 6] = [
     [

@@ -137,41 +137,56 @@ fn layer<F: Field, const INV: bool>((mut mat, twiddle): (RowMajorMatrixViewMut<F
 #[cfg(test)]
 mod test {
     use crate::{
-        field::{dot_product, AddtiveNtt, BinaryField, FromUniformBytes},
+        field::{AddtiveNtt, FromUniformBytes},
         matrix::dense::RowMajorMatrix,
         polyval::Polyval,
     };
     use rand::{rngs::StdRng, SeedableRng};
     use util::Itertools;
 
-    fn forward_matrix<F: BinaryField>(log_n: usize) -> RowMajorMatrix<F> {
-        fn u<F: BinaryField>(i: usize) -> impl Iterator<Item = F> {
-            (0..1 << i).map(F::from_canonical_u64)
-        }
+    mod definition {
+        use crate::{
+            field::{dot_product, BinaryField},
+            matrix::dense::RowMajorMatrix,
+        };
+        use util::Itertools;
 
-        fn w_beta<F: BinaryField>(i: usize) -> F {
-            u(i).map(|u| F::basis(i) - u).product()
-        }
-
-        fn q<F: BinaryField>(i: usize, x: F) -> F {
-            (w_beta::<F>(i).square() / w_beta(i + 1)) * x * (x + F::ONE)
-        }
-
-        fn row<F: BinaryField>(log_n: usize, x: F) -> Vec<F> {
-            return recurse(0, u(log_n).collect(), x);
-
-            fn recurse<F: BinaryField>(i: usize, s: Vec<F>, x: F) -> Vec<F> {
-                if s.len() == 1 {
-                    return vec![F::ONE];
-                }
-                recurse(i + 1, s.iter().map(|s| q(i, *s)).dedup().collect(), q(i, x))
-                    .into_iter()
-                    .flat_map(|v| [v, v * x])
-                    .collect()
+        fn forward_matrix<F: BinaryField>(log_n: usize) -> RowMajorMatrix<F> {
+            fn u<F: BinaryField>(i: usize) -> impl Iterator<Item = F> {
+                (0..1 << i).map(F::from_canonical_u64)
             }
+
+            fn w_beta<F: BinaryField>(i: usize) -> F {
+                u(i).map(|u| F::basis(i) - u).product()
+            }
+
+            fn q<F: BinaryField>(i: usize, x: F) -> F {
+                (w_beta::<F>(i).square() / w_beta(i + 1)) * x * (x + F::ONE)
+            }
+
+            fn row<F: BinaryField>(log_n: usize, x: F) -> Vec<F> {
+                return recurse(0, u(log_n).collect(), x);
+
+                fn recurse<F: BinaryField>(i: usize, s: Vec<F>, x: F) -> Vec<F> {
+                    if s.len() == 1 {
+                        return vec![F::ONE];
+                    }
+                    recurse(i + 1, s.iter().map(|s| q(i, *s)).dedup().collect(), q(i, x))
+                        .into_iter()
+                        .flat_map(|v| [v, v * x])
+                        .collect()
+                }
+            }
+
+            RowMajorMatrix::new(u(log_n).flat_map(|u| row(log_n, u)).collect(), 1 << log_n)
         }
 
-        RowMajorMatrix::new(u(log_n).flat_map(|u| row(log_n, u)).collect(), 1 << log_n)
+        pub fn forward<F: BinaryField>(data: Vec<F>) -> Vec<F> {
+            forward_matrix(data.len().ilog2() as _)
+                .row_slices()
+                .map(|row| dot_product(row, &data))
+                .collect()
+        }
     }
 
     #[test]
@@ -179,15 +194,9 @@ mod test {
         type F = Polyval;
         let mut rng = StdRng::from_entropy();
         for log_n in 0..10 {
-            let mat = forward_matrix::<F>(log_n);
             let ntt = AddtiveNtt::new(log_n);
             let data = F::random_vec(1 << log_n, &mut rng);
-            assert_eq!(
-                mat.row_slices()
-                    .map(|row| dot_product(row, &data))
-                    .collect_vec(),
-                ntt.forward(data)
-            );
+            assert_eq!(ntt.forward(data.clone()), definition::forward(data));
         }
     }
 
