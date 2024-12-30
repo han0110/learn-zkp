@@ -23,5 +23,5 @@ missing_debug_implementations = "forbid"
 broken_intra_doc_links = "forbid"
 
 [[bench]]
-name = "bench"
+name = "poly-commit"
 harness = false

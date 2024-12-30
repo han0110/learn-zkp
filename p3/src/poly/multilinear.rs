@@ -5,7 +5,11 @@ use crate::{
     op_multi_poly,
 };
 use std::borrow::Cow;
-use util::{enumerate, zip, Itertools};
+use util::{
+    enumerate, par_zip,
+    rayon::{self, prelude::*},
+    zip, Itertools,
+};
 
 #[derive(Clone, Debug)]
 pub enum MultiPoly<'a, F: Field, E: ExtensionField<F>> {
@@ -131,7 +135,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
                     .copied()
                     .map(E::ExtensionPacking::ext_broadcast)
                     .collect_vec();
-                evaluate(&evaluate(evals, &x_hi).ext_unpack(), x_lo)
+                evaluate::<E, E>(&evaluate(evals, &x_hi).ext_unpack(), x_lo)
             }
         }
     }
@@ -176,7 +180,7 @@ impl<'a, F: Field, E: ExtensionField<F>> MultiPoly<'a, F, E> {
     }
 }
 
-fn fix_last_var<F: FieldAlgebra + Copy>(evals: &mut Vec<F>, x_i: F) {
+pub fn fix_last_var<F: FieldAlgebra + Copy>(evals: &mut Vec<F>, x_i: F) {
     let mid = evals.len() / 2;
     let (lo, hi) = evals.split_at_mut(mid);
     zip!(lo, hi).for_each(|(lo, hi)| *lo += x_i * (*hi - *lo));
@@ -193,23 +197,27 @@ fn fix_last_var_from_base<F: FieldAlgebra + Copy, E: FieldExtensionAlgebra<F> + 
         .collect()
 }
 
-pub fn evaluate<F: FieldAlgebra + Copy>(evals: &[F], x: &[F]) -> F {
+pub fn evaluate<F, E>(evals: &[F], x: &[E]) -> E
+where
+    F: FieldAlgebra + Copy + Send + Sync,
+    E: FieldExtensionAlgebra<F> + Copy + Send + Sync,
+{
     debug_assert_eq!(evals.len(), 1 << x.len());
     match x {
-        [] => evals[0],
+        [] => E::from_base(evals[0]),
         &[ref x @ .., x_i] => {
             let (lo, hi) = evals.split_at(evals.len() / 2);
-            let (lo, hi) = (evaluate(lo, x), evaluate(hi, x));
+            let (lo, hi) = rayon::join(|| evaluate(lo, x), || evaluate(hi, x));
             x_i * (hi - lo) + lo
         }
     }
 }
 
-fn eq_expand<F: FieldAlgebra>(evals: &mut [F], x_i: F, i: usize) {
-    let (lo, hi) = evals[..1 << (i + 1)].split_at_mut(1 << i);
-    zip!(lo, hi).for_each(|(lo, hi)| {
-        *hi = lo.clone() * x_i.clone();
-        *lo -= hi.clone();
+pub fn eq_expand<F: FieldAlgebra + Copy + Send + Sync>(evals: &mut [F], x_i: F, i: usize) {
+    let (lo, hi) = evals[..2 << i].split_at_mut(1 << i);
+    par_zip!(lo, hi).for_each(|(lo, hi)| {
+        *hi = *lo * x_i;
+        *lo -= *hi;
     });
 }
 

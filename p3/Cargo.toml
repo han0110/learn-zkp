@@ -24,6 +24,7 @@ serde = { workspace = true }
 util = { path = "../util" }
 
 [dev-dependencies]
+criterion = { workspace = true }
 p3-field-testing = { workspace = true }
 
 [features]
@@ -34,3 +35,7 @@ missing_debug_implementations = "forbid"
 
 [lints.rustdoc]
 broken_intra_doc_links = "forbid"
+
+[[bench]]
+name = "multilinear"
+harness = false
