@@ -6,8 +6,9 @@ version.workspace = true
 [dependencies]
 auto_impl = { workspace = true }
 derive_more = { workspace = true, features = ["deref", "deref_mut"] }
-p3 = { path = "../p3" }
 rand = { workspace = true }
+serde = { workspace = true }
+p3 = { path = "../p3" }
 util = { path = "../util" }
 
 [dev-dependencies]

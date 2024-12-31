@@ -5,6 +5,7 @@ use p3::{
     field::{ExtensionField, Field},
     poly::univariate::horner,
 };
+use serde::{Deserialize, Serialize};
 use util::{rev, zip};
 
 pub mod function;
@@ -46,7 +47,8 @@ impl<E> SumcheckSubclaim<E> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct SumcheckProof<E: Field> {
     pub compressed_round_polys: Vec<Vec<E>>,
 }

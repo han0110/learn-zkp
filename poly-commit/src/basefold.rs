@@ -9,6 +9,7 @@ use p3::{
     matrix::{dense::RowMajorMatrix, extension::FlatMatrixView, Dimensions, Matrix},
     poly::multilinear::{eq_eval, evaluate, MultiPoly},
 };
+use serde::{Deserialize, Serialize};
 use sumcheck::{
     function::{
         eval::{Eval, EvalProver},
@@ -46,12 +47,13 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct BasefoldProof<F: Field, E: ExtensionField<F>, M: Mmcs<F>> {
-    sumcheck_proof: SumcheckProof<E>,
-    final_poly: Vec<E>,
-    pi_comms: Vec<M::Commitment>,
-    openings: Vec<(
+    pub sumcheck_proof: SumcheckProof<E>,
+    pub final_poly: Vec<E>,
+    pub pi_comms: Vec<M::Commitment>,
+    pub openings: Vec<(
         (
             Vec<F>,   // leaves
             M::Proof, // proof
@@ -230,7 +232,7 @@ where
 
     fn verify(
         &self,
-        comm: Self::Commitment,
+        comm: &Self::Commitment,
         evals: &[PolyEvals<E, Self::Point>],
         proof: &Self::Proof,
         mut challenger: impl FieldChallenger<F> + CanObserve<Self::Commitment>,

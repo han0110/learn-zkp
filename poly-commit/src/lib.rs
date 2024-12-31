@@ -3,6 +3,7 @@ use p3::{
     challenger::{CanObserve, FieldChallenger},
     field::{ExtensionField, Field},
 };
+use serde::{de::DeserializeOwned, Serialize};
 
 pub mod basefold;
 
@@ -19,10 +20,10 @@ pub struct PolyEvals<E, P> {
 pub trait PolyCommitScheme<F: Field, E: ExtensionField<F>>: Sized + Debug {
     type Config: Debug;
     type Data: Debug;
-    type Commitment: Clone + Debug;
+    type Commitment: Clone + Debug + Serialize + DeserializeOwned;
     type CommitmentData: Debug + AsRef<Self::Commitment>;
-    type Point: Debug;
-    type Proof: Debug;
+    type Point: Debug + Serialize + DeserializeOwned;
+    type Proof: Debug + Serialize + DeserializeOwned;
     type Error: Debug;
 
     fn setup(config: Self::Config) -> Result<Self, Self::Error>;
@@ -42,7 +43,7 @@ pub trait PolyCommitScheme<F: Field, E: ExtensionField<F>>: Sized + Debug {
 
     fn verify(
         &self,
-        comm: Self::Commitment,
+        comm: &Self::Commitment,
         evals: &[PolyEvals<E, Self::Point>],
         proof: &Self::Proof,
         challenger: impl FieldChallenger<F> + CanObserve<Self::Commitment>,
@@ -98,7 +99,7 @@ pub mod test {
 
             let proof = pcs.open(&comm_data, &evals, challenger.clone()).unwrap();
 
-            pcs.verify(comm, &evals, &proof, challenger.clone())
+            pcs.verify(&comm, &evals, &proof, challenger.clone())
                 .unwrap();
         }
     }
