@@ -16,7 +16,15 @@ mod x86_64_avx2;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use x86_64_avx2::{from_canonical, invert_or_zero, montgomery_multiply, to_canonical};
 
-#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+mod aarch64_neon;
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+pub use aarch64_neon::{from_canonical, invert_or_zero, montgomery_multiply, to_canonical};
+
+#[cfg(not(any(
+    all(target_arch = "x86_64", target_feature = "avx2"),
+    all(target_arch = "aarch64", target_feature = "neon")
+)))]
 use portable::{from_canonical, invert_or_zero, montgomery_multiply, to_canonical};
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

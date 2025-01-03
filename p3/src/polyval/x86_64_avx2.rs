@@ -1,3 +1,4 @@
+// Copied and modified from https://github.com/RustCrypto/universal-hashes/blob/master/polyval/src/backend/clmul.rs.
 // Copyright (c) 2019-2023 RustCrypto Developers
 
 use crate::polyval::portable;
@@ -13,7 +14,6 @@ pub fn to_canonical(a: u128) -> u128 {
     montgomery_multiply(a, 1)
 }
 
-// Copied and modified from https://github.com/RustCrypto/universal-hashes/blob/master/polyval/src/backend/clmul.rs.
 #[inline]
 pub fn montgomery_multiply(h: u128, y: u128) -> u128 {
     unsafe {
@@ -85,6 +85,7 @@ unsafe fn xor5(e1: __m128i, e2: __m128i, e3: __m128i, e4: __m128i, e5: __m128i) 
     )
 }
 
+#[inline]
 pub fn invert_or_zero(value: u128) -> u128 {
     portable::invert_or_zero(value)
 }
