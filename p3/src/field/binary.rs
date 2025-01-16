@@ -1,3 +1,5 @@
+//! Implementation of addtive NTT described in 2024/504.
+
 use crate::{
     field::{Field, FieldSlice},
     matrix::{

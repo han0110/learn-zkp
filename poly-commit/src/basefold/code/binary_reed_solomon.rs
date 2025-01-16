@@ -1,3 +1,5 @@
+//! Attempt to fit 2024/504 into 2023/1705 without binary tower field features.
+
 use crate::basefold::code::RandomFoldableCode;
 use p3::{
     field::{AddtiveNtt, BinaryField, ExtensionField, Field},

@@ -92,6 +92,7 @@ where
 {
     type Config = BasefoldConfig<R, M>;
     // TODO: Support multi-matrix with different dimension.
+    // TODO: Support smaller proof mode by concating polys.
     /// Evaluations of multilinear polynomials in row major matrix.
     type Data = RowMajorMatrix<F>;
     type Commitment = M::Commitment;
